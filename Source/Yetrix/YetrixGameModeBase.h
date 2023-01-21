@@ -1,9 +1,6 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #pragma once
 
 #include "CoreMinimal.h"
-
 #include "GameFramework/GameModeBase.h"
 #include "BlockBase.h"
 #include <set>
@@ -20,8 +17,6 @@ constexpr float finalDestroyTimeMarker = -1.f;
 typedef unsigned long long IDType;
 
 constexpr IDType invalidID = std::numeric_limits<IDType>::max();
-
-//static TSubclassOf<class ABlockBase> BlockBPClass;
 
 struct Vec2D {
 
@@ -163,7 +158,6 @@ public:
 
 	bool DeconstructFigures();
 	
-	
 	IDType GetLowestFigureID();
 
 	void CleanupBlocks(float dt);
@@ -201,6 +195,8 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 
 	bool CheckChangeDropState();
 
+	void Reset();
+
 	void OnStartDestroying();
 	void OnStartDropping();
 	void OnStopDropping();
@@ -226,22 +222,20 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	virtual void BeginPlay() override;
 	virtual void Tick(float dt) override;
 
-
 	void SimulationTick(float dt);
-
 	void CheckAddFigures();
-
 	void UpdateVisualDrop(float progress);
-
 	void UpdateVisualDestroy(float progress);
-	
 
+	void UpdateScore(const int score);
 
 	std::shared_ptr<BlockScene> blockScenePtr;
 
 	int leftPending = 0;
 	int rightPending = 0;
 	int rotatePending = 0;
+
+	int score = 0;
 
 	std::map<IDType, Vec2D> fallingPositions;
 

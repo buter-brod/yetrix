@@ -1,5 +1,3 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
-
 #include "YetrixGameModeBase.h"
 #include "YetrixPlayerController.h"
 #include "BlockBase.h"
@@ -7,8 +5,12 @@
 #include <array>
 #include <random>
 
+#include "Blueprint/UserWidget.h"
+
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "Engine/DamageEvents.h"
+
+#include "YetrixHUDBase.h"
 
 TSubclassOf<class ABlockBase> BlockBPClass;
 
@@ -20,6 +22,8 @@ constexpr float blockSize = 100.f;
 constexpr float destroyActorAfter = 3.f;
 constexpr float simulationUpdateInterval = 0.01f;
 
+constexpr float speedUpCoeff = 0.9f;
+
 constexpr float destroyYShift = 300.f;
 
 constexpr int checkHeight = 20;
@@ -30,6 +34,8 @@ constexpr int newFigureY = 25;
 constexpr int rightBorderX = 11;
 
 constexpr unsigned minFigures = 1;
+
+static const std::array<int, 4> scorePerCombo = {10, 25, 40, 60};
 
 const FigureConfigArr& GetFigureConfig(Figure::FigType type) {
 
@@ -74,7 +80,6 @@ void AYetrixGameModeBase::InitSubclasses() {
 		ConstructorHelpers::FObjectFinder<UBlueprint> blueprint_finder_BlockBP(TEXT("Blueprint'/Game/BlockBP.BlockBP'"));
 		BlockBPClass = (UClass*) blueprint_finder_BlockBP.Object->GeneratedClass;
 	}
-
 	PlayerControllerClass = AYetrixPlayerController::StaticClass();
 }
 
@@ -164,7 +169,7 @@ Vec2D GetRotated(Figure::AngleCW angle, Vec2D coord) {
 
 bool BlockScene::TryRotate(Figure::Ptr figPtr) {
 
-	const std::vector<Vec2D> validOffsets = {{0, 0}, {1, 0}, {-1, 0}, {0, -1}, {0, 1}};
+	static const std::vector<Vec2D> validOffsets = {{0, 0}, {1, 0}, {-1, 0}, {0, -1}, {0, 1}};
 	const auto& blockIDs = figPtr->GetBlockIDs();
 
 	std::vector<GameBlock::Ptr> figBlocks;
@@ -282,7 +287,7 @@ void GameBlock::StartDestroy() {
 
 ABlockBase* GameBlock::CreateActor(UWorld* world) {
 
-	const FRotator rotator;
+	const FRotator rotator = FRotator::ZeroRotator;
 	const FActorSpawnParameters spawnParams;
 	const FVector spawnLocation = ToWorldPosition(position);
 	
@@ -301,12 +306,7 @@ void GameBlock::UpdateActorPosition() {
 
 void AYetrixGameModeBase::BeginPlay() {
 
-	blockScenePtr = std::make_shared<BlockScene>();
-	dropStateTimer = stillStateInitialDuration;
-
-	auto* pawn = GetWorld()->GetFirstPlayerController()->GetPawn();
-	auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(pawn);
-	yetrixPawn->SetGameMode(this);
+	Reset();
 }
 
 void AYetrixGameModeBase::OnStartDestroying() {
@@ -316,16 +316,31 @@ void AYetrixGameModeBase::OnStartDropping() {
 
 	blockScenePtr->DeconstructFigures();
 	const auto& linesToDestruct = CheckDestruction();
-	
+
 	if (!linesToDestruct.empty()) {
 
 		fallingPositions = blockScenePtr->GetFallingPositions(linesToDestruct);
 		currDropState = DropState::DESTROYING;
 		dropStateTimer = destroyStateDuration;	
 		OnStartDestroying();
+
+		const auto howManyLines = linesToDestruct.size();
+
+		//assert(howManyLines <= 4);
+		UpdateScore(score + scorePerCombo[howManyLines - 1]);
+
+		stillStateDuration *= speedUpCoeff;
+		dropStateDuration *= speedUpCoeff;
 	}
 	
 	CheckAddFigures();
+}
+
+void AYetrixGameModeBase::UpdateScore(const int newScore) {
+	
+	score = newScore;
+	AYetrixHUDBase* hud = Cast<AYetrixHUDBase> (GetWorld()->GetFirstPlayerController()->GetHUD());
+	hud->UpdateScore(newScore);
 }
 
 void AYetrixGameModeBase::CheckAddFigures() {
@@ -333,6 +348,8 @@ void AYetrixGameModeBase::CheckAddFigures() {
 	if (blockScenePtr->GetFigures().size() < minFigures)
 	{
 		const bool added = blockScenePtr->CreateRandomFigureAt({newFigureX, newFigureY}, GetWorld());
+		if (!added)
+			Reset();
 	}
 }
 
@@ -612,8 +629,6 @@ bool BlockScene::CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigne
 			maxDistance = 0;
 			return false;
 		}
-
-		//const int maxDropHeightForBlock = blockPtr->GetPosition().y - lowestForBlock.y;
 		maxDistance = std::min(maxDistForBlock, maxDistance);
 	}
 
@@ -642,6 +657,18 @@ IDType BlockScene::GetLowestFigureID() {
 	}
 
 	return lowestFigID;
+}
+
+void AYetrixGameModeBase::Reset() {
+
+	blockScenePtr = std::make_shared<BlockScene>();
+	dropStateTimer = stillStateInitialDuration;
+
+	auto* pawn = GetWorld()->GetFirstPlayerController()->GetPawn();
+	auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(pawn);
+	yetrixPawn->SetGameMode(this);
+
+	UpdateScore(0);
 }
 
 void AYetrixGameModeBase::UpdateVisualDestroy(const float progress) {
@@ -768,8 +795,10 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 			rotatePending--;
 
 			const auto lowestFigID = blockScenePtr->GetLowestFigureID();
-			auto& figure = blockScenePtr->GetFigures().at(lowestFigID);
-			const bool rotated = blockScenePtr->TryRotate(figure);
+			if (lowestFigID != invalidID) {
+				auto& figure = blockScenePtr->GetFigures().at(lowestFigID);
+				const bool rotated = blockScenePtr->TryRotate(figure);
+			}			
 		}
 	}
 

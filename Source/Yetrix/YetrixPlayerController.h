@@ -15,7 +15,6 @@ class YETRIX_API AYetrixPlayerController : public APlayerController
 	GENERATED_BODY()
 	
 public:
-    // ~Overrides: APlayerController
 	void SetupInputComponent() override;
 
 	void MoveLeft();
@@ -23,9 +22,6 @@ public:
 	void Drop();
 	void Down();
 	void Rotate();
-
-    // Declare your callbacks here
-    // MoveForward(); MoveLateral(); Jump();
 };
 
 
