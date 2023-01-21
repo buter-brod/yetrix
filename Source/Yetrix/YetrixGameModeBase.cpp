@@ -664,6 +664,9 @@ void AYetrixGameModeBase::Reset() {
 	blockScenePtr = std::make_shared<BlockScene>();
 	dropStateTimer = stillStateInitialDuration;
 
+	stillStateDuration = stillStateInitialDuration;
+	dropStateDuration = dropStateInitialDuration;
+
 	auto* pawn = GetWorld()->GetFirstPlayerController()->GetPawn();
 	auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(pawn);
 	yetrixPawn->SetGameMode(this);
