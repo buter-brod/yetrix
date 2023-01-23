@@ -9,6 +9,10 @@ void AYetrixPlayerController::SetupInputComponent()
     // This is initialized on startup, you can go straight to binding
     InputComponent->BindAction("Left", IE_Pressed, this, &AYetrixPlayerController::MoveLeft);
     InputComponent->BindAction("Right", IE_Pressed, this, &AYetrixPlayerController::MoveRight);
+
+    InputComponent->BindAction("Left", IE_Repeat, this, &AYetrixPlayerController::MoveLeft);
+    InputComponent->BindAction("Right", IE_Repeat, this, &AYetrixPlayerController::MoveRight);
+
     InputComponent->BindAction("Drop", IE_Pressed, this, &AYetrixPlayerController::Drop); 
     InputComponent->BindAction("Down", IE_Pressed, this, &AYetrixPlayerController::Down); 
     InputComponent->BindAction("Rotate", IE_Pressed, this, &AYetrixPlayerController::Rotate); 
