@@ -15,7 +15,13 @@ void AYetrixPlayerController::SetupInputComponent()
 
     InputComponent->BindAction("Drop", IE_Pressed, this, &AYetrixPlayerController::Drop); 
     InputComponent->BindAction("Down", IE_Pressed, this, &AYetrixPlayerController::Down); 
-    InputComponent->BindAction("Rotate", IE_Pressed, this, &AYetrixPlayerController::Rotate); 
+    InputComponent->BindAction("Rotate", IE_Pressed, this, &AYetrixPlayerController::Rotate);
+
+    InputComponent->BindAction("Quit", IE_Pressed, this, &AYetrixPlayerController::Quit);
+}
+
+void AYetrixPlayerController::Quit() {
+    FGenericPlatformMisc::RequestExit(false);
 }
 
 void AYetrixPlayerController::Rotate() {

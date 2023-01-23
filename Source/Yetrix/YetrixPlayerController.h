@@ -22,6 +22,7 @@ public:
 	void Drop();
 	void Down();
 	void Rotate();
+	void Quit();
 };
 
 

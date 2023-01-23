@@ -17,8 +17,8 @@ bool BlockScene::InitSubclasses() {
 
 	const bool wasNeedInit = !BlockBPClass.Get();
 	if (wasNeedInit) {
-		ConstructorHelpers::FObjectFinder<UBlueprint> blueprint_finder_BlockBP(TEXT("Blueprint'/Game/BlockBP.BlockBP'"));
-		BlockBPClass = (UClass*) blueprint_finder_BlockBP.Object->GeneratedClass;
+		ConstructorHelpers::FObjectFinder<UClass> blueprint_finder_BlockBP(TEXT("Blueprint'/Game/BlockBP.BlockBP_C'"));
+		BlockBPClass = (UClass*) blueprint_finder_BlockBP.Object;
 	}
 	
 	return wasNeedInit;

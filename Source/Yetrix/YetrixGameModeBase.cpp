@@ -2,7 +2,6 @@
 #include "YetrixPlayerController.h"
 #include "BlockBase.h"
 #include "YetrixPawn.h"
-#include "Blueprint/UserWidget.h"
 
 #include "GeometryCollection/GeometryCollectionComponent.h"
 #include "Engine/DamageEvents.h"

@@ -1,7 +1,6 @@
 #include "YetrixHUDBase.h"
 
 AYetrixHUDBase::AYetrixHUDBase() {
-	printf("");
 }
 
 void AYetrixHUDBase::DrawHUD() {
