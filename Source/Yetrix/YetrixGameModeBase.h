@@ -37,7 +37,12 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	void FinalizeLogicalDestroy();
 	std::set<int> CheckDestruction();
 
-	//IDType controlledFigureID = 0;
+	void InitSounds();
+
+	bool PlaySoundWithRandomIndex(const std::string& prefix, const int count);
+	bool PlaySound(const std::string& what);
+
+	std::map<std::string, USoundWave*> soundsMap;
 
 	struct State {
 

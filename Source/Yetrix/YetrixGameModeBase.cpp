@@ -9,11 +9,70 @@
 #include "YetrixHUDBase.h"
 #include "YetrixConfig.h"
 
+#include "Utils.h"
+
 AYetrixGameModeBase::AYetrixGameModeBase() {
 
 	PrimaryActorTick.bCanEverTick = true;
 	BlockScene::InitSubclasses();
 	PlayerControllerClass = AYetrixPlayerController::StaticClass();
+
+	InitSounds();
+}
+
+bool AYetrixGameModeBase::PlaySoundWithRandomIndex(const std::string& prefix, const int count) {
+
+	const std::string finalSoundName = prefix + std::to_string(Utils::rnd0xi(count));
+	return PlaySound(finalSoundName);
+}
+
+bool AYetrixGameModeBase::PlaySound(const std::string& what){
+
+	auto soundIt = soundsMap.find(what);
+
+	if (soundIt == soundsMap.end())
+		return false;
+
+	UGameplayStatics::PlaySound2D(this, soundIt->second);
+	return true;
+}
+
+void AYetrixGameModeBase::InitSounds() {
+
+	std::set<std::string> soundNames = {
+		"bah10",
+		"bah11",
+		"bah12",
+		"bah13",
+		"bah20",
+		"bah30",
+		"bah40",
+		"bdysh0",
+		"bdysh1",
+		"bdysh2",
+		"gameover",
+		"k0",
+		"k1",
+		"k2",
+		"k3",
+		"k4",
+		"k5",
+		"k6",
+		"k7",
+		"k8",
+		"k9",
+		"yeah"
+	};
+
+	for (const auto& name : soundNames){
+
+		std::wstring wname(name.begin(), name.end());
+		std::wstring assetPath = L"/Game/Sound/" + wname + L"." + wname;
+
+		ConstructorHelpers::FObjectFinder<USoundWave> waveAsset(assetPath.c_str());
+		// assert(waveAsset.Object)
+		soundsMap[name] = waveAsset.Object;
+	}
 }
 
 void AYetrixGameModeBase::BeginPlay() {
@@ -119,26 +178,36 @@ void AYetrixGameModeBase::CheckAddFigures() {
 void AYetrixGameModeBase::Left() {
 	
 	statePtr->leftPending++;
+
+	PlaySound("k0");
 }
 
 void AYetrixGameModeBase::Right() {
 
 	statePtr->rightPending++;
+
+	PlaySound("k1");
 }
 
 void AYetrixGameModeBase::Rotate() {
 
 	statePtr->rotatePending++;
+	PlaySound("k2");
 }
 
 void AYetrixGameModeBase::Drop() {
 	statePtr->quickDropRequested = true;
 	statePtr->dropStateTimer = 0.f;
+
+	PlaySoundWithRandomIndex("bdysh", 3);
 }
 
 void AYetrixGameModeBase::Down() {
 	if (statePtr->currDropState == DropState::STILL)
+	{
+		PlaySound("k3");
 		statePtr->dropStateTimer = 0.f;
+	}
 }
 
 std::set<int> AYetrixGameModeBase::CheckDestruction() {
@@ -159,6 +228,19 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 
 		if (!hasHoles) {
 			linesToBoom.insert(y);
+		}
+	}
+
+	if (!linesToBoom.empty()) {
+		const auto linesCount = linesToBoom.size();
+		
+
+		if (linesCount == 1) {
+			PlaySoundWithRandomIndex("bah1", 4);
+		}
+		else {
+			std::string sound = "bah" + std::to_string(linesCount) + "0";
+			PlaySound(sound);
 		}
 	}
 
