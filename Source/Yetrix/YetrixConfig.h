@@ -29,3 +29,5 @@ static const std::array<int, 4> scorePerCombo = {10, 25, 40, 60};
 constexpr float stillStateInitialDuration = 0.5f;
 constexpr float dropStateInitialDuration = 0.1f;
 constexpr float destroyingStateInitialDuration = 0.5f;
+
+constexpr int scoreYeahInterval = 100;

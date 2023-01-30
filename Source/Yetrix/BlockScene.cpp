@@ -17,7 +17,7 @@ bool BlockScene::InitSubclasses() {
 
 	const bool wasNeedInit = !BlockBPClass.Get();
 	if (wasNeedInit) {
-		ConstructorHelpers::FObjectFinder<UClass> blueprint_finder_BlockBP(TEXT("Blueprint'/Game/BlockBP.BlockBP_C'"));
+		const ConstructorHelpers::FObjectFinder<UClass> blueprint_finder_BlockBP(TEXT("Blueprint'/Game/BlockBP.BlockBP_C'"));
 		BlockBPClass = (UClass*) blueprint_finder_BlockBP.Object;
 	}
 	
@@ -61,8 +61,8 @@ BlockScene::BlockScene(){
 bool BlockScene::CreateFigureAt(Figure::FigType figType, const Vec2D& pos, UWorld* world) {
 
 	Figure::Ptr newFigurePtr = std::make_shared<Figure>(figType);
-	
-	auto newBlocks = newFigurePtr->CreateBlocks(pos, world);
+
+	const auto newBlocks = newFigurePtr->CreateBlocks(pos, world);
 
 	for (const auto& blockPtr : newBlocks) {
 		const bool canAddBlock = CanAddBlock(blockPtr);
@@ -82,15 +82,14 @@ bool BlockScene::CreateFigureAt(Figure::FigType figType, const Vec2D& pos, UWorl
 
 bool BlockScene::CreateRandomFigureAt(const Vec2D& pos, UWorld* world) {
 
-	std::uniform_int_distribution<int> uni(0, (int)Figure::FigType::UNDEFINED - 1);
+	std::uniform_int_distribution<int> uni(0, static_cast<int>(Figure::FigType::UNDEFINED) - 1);
 	const Figure::FigType figType = static_cast<Figure::FigType> (uni(localRnd()));
 	const bool figAdded = CreateFigureAt(figType, pos, world);
 	return figAdded;
 }
 
-GameBlock::Ptr BlockScene::GetBlock(IDType blockID) const {
-
-	auto blockIt = blocks.find(blockID);
+GameBlock::Ptr BlockScene::GetBlock(const IDType blockID) const {
+	const auto blockIt = blocks.find(blockID);
 	if (blockIt == blocks.end())
 		return nullptr;
 
@@ -106,8 +105,8 @@ GameBlock::Ptr BlockScene::GetBlock(const Vec2D& pos, bool aliveOnly) const {
 	return nullptr;
 }
 
-bool BlockScene::CanAddBlock(GameBlock::Ptr blockPtr) {
-
+bool BlockScene::CanAddBlock(const GameBlock::Ptr blockPtr) const
+{
 	const auto& blockPos = blockPtr->GetPosition();
 	const auto& existingBlock = GetBlock(blockPos, true);
 	const bool canAdd = existingBlock == nullptr;
@@ -131,7 +130,7 @@ Figure::~Figure() {
 Vec2D GetRotated(Figure::AngleCW angle, Vec2D coord) {
 
 	Vec2D rotated = coord;
-	int rotateIterations = (int) angle;
+	int rotateIterations = static_cast<int>(angle);
 
 	while (rotateIterations) {
 		rotated = {rotated.y, -rotated.x};
@@ -161,7 +160,7 @@ bool BlockScene::TryRotate(Figure::Ptr figPtr) {
 
 			bool blocked = false;
 			const Vec2D& figOrigin = figBlocks.at(0)->GetPosition() + offset;
-			for (auto& block : figBlocks) {
+			for (const auto& block : figBlocks) {
 
 				Vec2D blockPos = block->GetPosition();
 				blockPos = blockPos + offset;
@@ -178,7 +177,7 @@ bool BlockScene::TryRotate(Figure::Ptr figPtr) {
 			if (!blocked) {
 				// let's rotate
 
-				for (auto& block : figBlocks) {
+				for (const auto& block : figBlocks) {
 
 					Vec2D blockPos = block->GetPosition();
 					blockPos = blockPos + offset;
@@ -240,7 +239,7 @@ GameBlock::~GameBlock() {
 		actor->Destroy();
 }
 
-bool GameBlock::TickDestroy(float dt) {
+bool GameBlock::TickDestroy(const float dt) {
 
 	if (finalDestroyTimer > 0.f)
 		finalDestroyTimer -= dt;
@@ -263,19 +262,19 @@ ABlockBase* GameBlock::CreateActor(UWorld* world) {
 
 	const FRotator rotator = FRotator::ZeroRotator;
 	const FActorSpawnParameters spawnParams;
-	const FVector spawnLocation = ToWorldPosition(position);
-	
-	auto newBlockActor = world->SpawnActor<ABlockBase>(BlockBPClass, spawnLocation, rotator, spawnParams);
+	const FVector spawnLocation = ToWorldPosition(info.position);
+
+	const auto newBlockActor = world->SpawnActor<ABlockBase>(BlockBPClass, spawnLocation, rotator, spawnParams);
 	actor = newBlockActor;
 	return actor;
 }
 
-void GameBlock::UpdateActorPosition() {
-
+void GameBlock::UpdateActorPosition() const
+{
 	if (!actor)
 		return;
 
-	actor->SetActorLocation(ToWorldPosition(position));
+	actor->SetActorLocation(ToWorldPosition(info.position));
 }
 
 bool BlockScene::DeconstructFigures() {
@@ -291,11 +290,11 @@ bool BlockScene::DeconstructFigures() {
 	}
 
 	for (auto figID : figuresToDeconstruct) {
-		auto& fig = figures.at(figID);
+		const auto& fig = figures.at(figID);
 
 		const auto& blockIDs = fig->GetBlockIDs();
-		for (auto blockID : blockIDs) {
-			auto block = GetBlock(blockID);
+		for (const auto blockID : blockIDs) {
+			const auto block = GetBlock(blockID);
 			block->SetFigure(invalidID);
 		}
 
@@ -313,7 +312,7 @@ bool BlockScene::MoveBlock(const Vec2D& direction) {
 	if (lowestFigID == invalidID)
 		return false;
 
-	auto& figure = GetFigures().at(lowestFigID);
+	const auto& figure = GetFigures().at(lowestFigID);
 
 	unsigned distance = 0;
 	const bool canMove = CheckFigureCanMove(figure, direction, distance);
@@ -322,9 +321,8 @@ bool BlockScene::MoveBlock(const Vec2D& direction) {
 		return false;
 
 	const auto& blockIDs = figure->GetBlockIDs();
-	for (auto blockID : blockIDs) {
-
-		auto block = GetBlock(blockID);
+	for (const auto blockID : blockIDs) {
+		const auto block = GetBlock(blockID);
 		const auto& prevPos = block->GetPosition();
 		const auto newPos = prevPos + direction;
 		block->SetPosition(newPos);
@@ -346,11 +344,12 @@ std::map<IDType, Vec2D> BlockScene::GetFallingPositions(const std::set<int>& des
 			++fallAccum;
 			continue;
 		}
-		else if (fallAccum == 0)
+
+		if (fallAccum == 0)
 			continue;
 
 		for (int x = 1; x < rightBorderX; ++x) {
-			auto block = GetBlock({x, y}, true);
+			const auto block = GetBlock({x, y}, true);
 			if (block && block->IsAlive() && block->GetFigureID() == invalidID)
 			{
 				const int newY = y - fallAccum;
@@ -363,7 +362,8 @@ std::map<IDType, Vec2D> BlockScene::GetFallingPositions(const std::set<int>& des
 	return fallingPositions;
 }
 
-bool BlockScene::CheckFigureBlockCanBePlaced(const Vec2D& position) {
+bool BlockScene::CheckFigureBlockCanBePlaced(const Vec2D& position) const
+{
 
 	const bool positionBoundsOk = position.y > 0 && position.x > 0 && position.x < rightBorderX;
 	if (!positionBoundsOk)
@@ -378,8 +378,8 @@ bool BlockScene::CheckFigureBlockCanBePlaced(const Vec2D& position) {
 	return free;
 }
 
-bool BlockScene::CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, unsigned& maxDistance){
-
+bool BlockScene::CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, unsigned& maxDistance) const
+{
 	const Vec2D blockPos = blockPtr->GetPosition();
 	Vec2D farest = {blockPos.x, blockPos.y};
 
@@ -397,13 +397,12 @@ bool BlockScene::CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, uns
 	return canDrop;
 }
 
-bool BlockScene::CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance) {
-
+bool BlockScene::CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance) const
+{
 	const auto& figBlockIDs = figPtr->GetBlockIDs();
 	maxDistance = std::numeric_limits<int>::max();
 	for (auto& blockID : figBlockIDs) {
-		
-		auto blockPtr = GetBlock(blockID);
+		const auto blockPtr = GetBlock(blockID);
 		
 		unsigned maxDistForBlock = 0;
 		const bool canMoveBlock = CheckBlockCanMove(blockPtr, direction, maxDistForBlock);
@@ -418,7 +417,8 @@ bool BlockScene::CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigne
 	return canDrop;
 }
 
-IDType BlockScene::GetLowestFigureID() {
+IDType BlockScene::GetLowestFigureID() const
+{
 	
 	IDType lowestFigID = invalidID;
 	int lowestBlockY = std::numeric_limits<int>::max();
@@ -445,10 +445,10 @@ void BlockScene::CleanupBlocks(const float dt) {
 
 	std::set<IDType> blocksToDestroy;
 
-	for (auto& block : blocks) {
-		const bool needFinalDestroy = block.second->TickDestroy(dt);
+	for (const auto& [id, block] : blocks) {
+		const bool needFinalDestroy = block->TickDestroy(dt);
 		if (needFinalDestroy)
-			blocksToDestroy.insert(block.second->GetID());
+			blocksToDestroy.insert(id);
 	}
 
 	for (auto& blockIDToDestroy : blocksToDestroy)

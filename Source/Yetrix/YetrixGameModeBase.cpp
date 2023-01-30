@@ -77,7 +77,11 @@ void AYetrixGameModeBase::InitSounds() {
 
 void AYetrixGameModeBase::BeginPlay() {
 
-	auto* pawn = GetWorld()->GetFirstPlayerController()->GetPawn();
+	const auto* world = GetWorld();
+	if (!world)
+		return;
+
+	auto* pawn = world->GetFirstPlayerController()->GetPawn();
 	auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(pawn);
 	yetrixPawn->SetGameMode(this);
 
@@ -101,8 +105,27 @@ void AYetrixGameModeBase::OnStartDropping() {
 
 		const auto howManyLines = linesToDestruct.size();
 
+		const int prevHundreds = statePtr->score / 100;
+
 		//assert(howManyLines <= 4);
 		AddScore(scorePerCombo[howManyLines - 1]);
+
+		const int nowHundreds = statePtr->score / 100;
+
+		if (nowHundreds > prevHundreds) {
+
+			FTimerHandle TimerHandle;
+			constexpr float sayYeahAfterSeconds = 1.f;
+			const auto* world = GetWorld();
+
+			if (world)
+			{
+				world->GetTimerManager().SetTimer(TimerHandle, [&]()
+				{
+					PlaySound("yeah");
+				}, sayYeahAfterSeconds, false);
+			}			
+		}
 
 		statePtr->lightAngleStart = statePtr->lightAngleCurrent;
 		statePtr->lightAngleEnd += lightZRotationAddPerExplosion;
@@ -151,17 +174,24 @@ void AYetrixGameModeBase::UpdateSunlight(const float angle) {
 	{
 		//error
 		return;
-	}	
+	}
 
-	auto sunlightActor = sunlightActors[0];
+	const auto sunlightActor = sunlightActors[0];
 	auto rotation = sunlightActor->GetActorRotation();
 	rotation.Yaw = angle;
 	sunlightActor->SetActorRotation(rotation);
 }
 
-void AYetrixGameModeBase::UpdateScoreUI() {
-	
-	AYetrixHUDBase* hud = Cast<AYetrixHUDBase> (GetWorld()->GetFirstPlayerController()->GetHUD());
+void AYetrixGameModeBase::UpdateScoreUI() const
+{
+	const auto* world = GetWorld();
+	if (!world)
+		return;
+
+	AYetrixHUDBase* hud = Cast<AYetrixHUDBase> (world->GetFirstPlayerController()->GetHUD());
+	if (!hud)
+		return;
+
 	hud->UpdateScore(statePtr->score);
 }
 
@@ -170,8 +200,11 @@ void AYetrixGameModeBase::CheckAddFigures() {
 	if (statePtr->blockScenePtr->GetFigures().size() < minFigures)
 	{
 		const bool added = statePtr->blockScenePtr->CreateRandomFigureAt({newFigureX, newFigureY}, GetWorld());
-		if (!added)
+		if (!added) {
+			// Game over
 			Reset();
+			PlaySound("gameover");
+		}
 	}
 }
 
@@ -219,7 +252,7 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 		for (int x = 1; x < rightBorderX; ++x)
 		{
 			Vec2D checkPos(x, y);
-			auto blockPtr = statePtr->blockScenePtr->GetBlock(checkPos, true);
+			const auto blockPtr = statePtr->blockScenePtr->GetBlock(checkPos, true);
 			if (!blockPtr || !blockPtr->IsAlive() || blockPtr->GetFigureID() != invalidID) {
 				hasHoles = true;
 				break;
@@ -239,7 +272,7 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 			PlaySoundWithRandomIndex("bah1", 4);
 		}
 		else {
-			std::string sound = "bah" + std::to_string(linesCount) + "0";
+			const std::string sound = "bah" + std::to_string(linesCount) + "0";
 			PlaySound(sound);
 		}
 	}
@@ -249,14 +282,15 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 		for (int x = 1; x < rightBorderX; ++x)
 		{
 			Vec2D blockPos(x, y);
-			auto blockPtr = statePtr->blockScenePtr->GetBlock(blockPos, true);
+			const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockPos, true);
 
 			blockPtr->StartDestroy();
 
 			TArray<UActorComponent*> components;
 			blockPtr->GetActor()->GetComponents(components);
-			auto geometryComponent = Cast<UGeometryCollectionComponent>(components[2]);
-			geometryComponent->SetSimulatePhysics(true);
+			auto* geometryComponent = Cast<UGeometryCollectionComponent>(components[2]);
+			if (geometryComponent)
+				geometryComponent->SetSimulatePhysics(true);
 		}
 	}
 
@@ -279,22 +313,22 @@ void AYetrixGameModeBase::FinalizeLogicalDrop() {
 
 	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
 
-	auto& figures = statePtr->blockScenePtr->GetFigures();
-	for (auto& figure : figures) {
+	const auto& figures = statePtr->blockScenePtr->GetFigures();
+	for (const auto& [figID, fig] : figures) {
 		
 		unsigned maxHeight = 0;
-		const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(figure.second, {0, -1}, maxHeight);
+		const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(fig, {0, -1}, maxHeight);
 		if (!canDrop)
 			continue;
 
-		const bool isLowestOne = figure.first == lowestFigID;
+		const bool isLowestOne = figID == lowestFigID;
 		const bool canQuickDrop = isLowestOne && statePtr->quickDropRequested; 
 		const int heightToDrop = canQuickDrop ? maxHeight : 1;
 		
-		const auto& blockIDs = figure.second->GetBlockIDs();
+		const auto& blockIDs = fig->GetBlockIDs();
 		
-		for (auto blockID : blockIDs) {
-			auto block = statePtr->blockScenePtr->GetBlock(blockID);
+		for (const auto blockID : blockIDs) {
+			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
 			const auto& logicalPos = block->GetPosition();
 			auto dropLogicalPos = logicalPos;
 			dropLogicalPos.y -= heightToDrop;
@@ -360,7 +394,7 @@ void AYetrixGameModeBase::UpdateVisualDestroy(const float progress) {
 		const auto blockWorldPos = GameBlock::ToWorldPosition(startLogicalPos);
 		const auto dropWorldPos = GameBlock::ToWorldPosition(endLogicalPos);
 
-		auto dropWorldPosNormalY = dropWorldPos.Y;
+		const auto dropWorldPosNormalY = dropWorldPos.Y;
 		auto dropPosIntermediateY = dropWorldPosNormalY;
 
 		const auto dYFull = destroyYShift - dropWorldPosNormalY;
@@ -403,8 +437,8 @@ void AYetrixGameModeBase::UpdateVisualDrop(const float progress) {
 		
 		const auto& blockIDs = figure.second->GetBlockIDs();
 		
-		for (auto blockID : blockIDs) {
-			auto block = statePtr->blockScenePtr->GetBlock(blockID);
+		for (const auto blockID : blockIDs) {
+			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
 			const auto logicalPos = block->GetPosition();
 			auto dropLogicalPos = logicalPos;
 			dropLogicalPos.y -= heightToDrop;
@@ -461,7 +495,7 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 
 			const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
 			if (lowestFigID != invalidID) {
-				auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
+				const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
 				const bool rotated = statePtr->blockScenePtr->TryRotate(figure);
 			}			
 		}

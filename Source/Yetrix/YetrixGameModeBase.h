@@ -86,7 +86,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	void UpdateVisualDestroy(float progress);
 	
 	void AddScore(const int score);
-	void UpdateScoreUI();
+	void UpdateScoreUI() const;
 	void UpdateSunlight(const float angle);
 	void UpdateSunMove(const float dt);
 	
