@@ -3,6 +3,8 @@
 #include <array>
 #include <random>
 
+#include "3rdparty/nlohmann/json.hpp"
+
 typedef std::array<std::array<bool, 4>, 2> FigureConfigArr;
 
 static TSubclassOf<class ABlockBase> BlockBPClass;
@@ -24,7 +26,7 @@ bool BlockScene::InitSubclasses() {
 	return wasNeedInit;
 }
 
-const FigureConfigArr& GetFigureConfig(Figure::FigType type) {
+const FigureConfigArr& GetFigureConfig(const Figure::FigType type) {
 
 	static std::map<Figure::FigType, FigureConfigArr> configArrMap;
 
@@ -45,7 +47,7 @@ const FigureConfigArr& GetFigureConfig(Figure::FigType type) {
 	return configArr;
 }
 
-IDType GameBlock::NewID() {
+IDType GameBlock::BlockInfo::NewID() {
 	static IDType id = 0;
 	return id++;
 }
@@ -58,9 +60,14 @@ IDType Figure::NewID() {
 BlockScene::BlockScene(){
 }
 
-bool BlockScene::CreateFigureAt(Figure::FigType figType, const Vec2D& pos, UWorld* world) {
+BlockScene::~BlockScene()
+{
+	
+}
 
-	Figure::Ptr newFigurePtr = std::make_shared<Figure>(figType);
+bool BlockScene::CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world) {
+
+	Figure::Ptr newFigurePtr = std::make_shared<Figure>(type);
 
 	const auto newBlocks = newFigurePtr->CreateBlocks(pos, world);
 
@@ -98,9 +105,9 @@ GameBlock::Ptr BlockScene::GetBlock(const IDType blockID) const {
 
 GameBlock::Ptr BlockScene::GetBlock(const Vec2D& pos, bool aliveOnly) const {
 
-	for (auto& block : blocks)
-		if (block.second->GetPosition() == pos && (!aliveOnly || block.second->IsAlive()))
-			return block.second;
+	for (const auto& [id, blockPtr] : blocks)
+		if (blockPtr->GetPosition() == pos && (!aliveOnly || blockPtr->IsAlive()))
+			return blockPtr;
 
 	return nullptr;
 }
@@ -160,13 +167,18 @@ bool BlockScene::TryRotate(Figure::Ptr figPtr) {
 
 			bool blocked = false;
 			const Vec2D& figOrigin = figBlocks.at(0)->GetPosition() + offset;
-			for (const auto& block : figBlocks) {
 
-				Vec2D blockPos = block->GetPosition();
-				blockPos = blockPos + offset;
-				blockPos = blockPos - figOrigin;
-				Vec2D rotated = GetRotated(rotation, blockPos);
+			auto getBlockRotatedPos = [offset, figOrigin, rotation](const Vec2D& blockPos)
+			{
+				const auto blockPosRelative = blockPos + offset - figOrigin;
+				Vec2D rotated = GetRotated(rotation, blockPosRelative);
 				rotated = rotated + figOrigin;
+				return rotated;
+			};
+
+			for (const auto& block : figBlocks) {
+				
+				const auto rotated = getBlockRotatedPos(block->GetPosition());
 				const bool ok = CheckFigureBlockCanBePlaced(rotated);
 				if (!ok) {
 					blocked = true;
@@ -178,12 +190,7 @@ bool BlockScene::TryRotate(Figure::Ptr figPtr) {
 				// let's rotate
 
 				for (const auto& block : figBlocks) {
-
-					Vec2D blockPos = block->GetPosition();
-					blockPos = blockPos + offset;
-					blockPos = blockPos - figOrigin;
-					Vec2D rotated = GetRotated(rotation, blockPos);
-					rotated = rotated + figOrigin;
+					const auto rotated = getBlockRotatedPos(block->GetPosition());
 					block->SetPosition(rotated);
 					block->UpdateActorPosition();
 				}
@@ -194,6 +201,11 @@ bool BlockScene::TryRotate(Figure::Ptr figPtr) {
 	}
 
 	return false;
+}
+
+void GameBlock::Init(const BlockInfo& givenInfo)
+{
+	info = givenInfo;
 }
 
 std::vector<GameBlock::Ptr> Figure::CreateBlocks(const Vec2D& leftTop, UWorld* world) {
@@ -211,11 +223,14 @@ std::vector<GameBlock::Ptr> Figure::CreateBlocks(const Vec2D& leftTop, UWorld* w
 			if (!hasBlock)
 				continue;
 
-			GameBlock::Ptr newBlock = std::make_shared<GameBlock>();
-			newBlock->SetPosition({leftTop.x + x, leftTop.y - y});
-			newBlock->CreateActor(world);
+			
+			GameBlock::BlockInfo newBlockInfo;
+			newBlockInfo.position = {leftTop.x + x, leftTop.y - y};
+			newBlockInfo.figureID = GetID();
 
-			newBlock->SetFigure(GetID());
+			GameBlock::Ptr newBlock = std::make_shared<GameBlock>();
+			newBlock->Init(newBlockInfo);
+			newBlock->CreateActor(world);
 
 			newBlocks.push_back(newBlock);
 			blockIDs.push_back(newBlock->GetID());
@@ -281,12 +296,12 @@ bool BlockScene::DeconstructFigures() {
 
 	std::set<IDType> figuresToDeconstruct;
 
-	for (auto& figure : figures) {
+	for (auto& [id, figPtr] : figures) {
 		
 		unsigned maxHeight = 0;
-		const bool canDrop = CheckFigureCanMove(figure.second, {0, -1}, maxHeight);
+		const bool canDrop = CheckFigureCanMove(figPtr, {0, -1}, maxHeight);
 		if (!canDrop)
-			figuresToDeconstruct.insert(figure.first);
+			figuresToDeconstruct.insert(id);
 	}
 
 	for (auto figID : figuresToDeconstruct) {
@@ -397,7 +412,7 @@ bool BlockScene::CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, uns
 	return canDrop;
 }
 
-bool BlockScene::CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance) const
+bool BlockScene::CheckFigureCanMove(const Figure::Ptr figPtr, const Vec2D direction, unsigned& maxDistance) const
 {
 	const auto& figBlockIDs = figPtr->GetBlockIDs();
 	maxDistance = std::numeric_limits<int>::max();
@@ -418,14 +433,13 @@ bool BlockScene::CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigne
 }
 
 IDType BlockScene::GetLowestFigureID() const
-{
-	
+{	
 	IDType lowestFigID = invalidID;
 	int lowestBlockY = std::numeric_limits<int>::max();
 
-	for (const auto& figurePair : figures) {
+	for (const auto& [id, figPtr] : figures) {
 
-		const auto& blockIDs = figurePair.second->GetBlockIDs();
+		const auto& blockIDs = figPtr->GetBlockIDs();
 		for (const auto blockID : blockIDs) {
 
 			const auto& block = GetBlock(blockID);
@@ -433,7 +447,7 @@ IDType BlockScene::GetLowestFigureID() const
 
 			if (lowestBlockY > blockPos.y) {
 				lowestBlockY = blockPos.y;
-				lowestFigID = figurePair.first;
+				lowestFigID = id;
 			}
 		}
 	}
@@ -453,4 +467,94 @@ void BlockScene::CleanupBlocks(const float dt) {
 
 	for (auto& blockIDToDestroy : blocksToDestroy)
 		blocks.erase(blockIDToDestroy);
+}
+
+json BlockScene::Save() const
+{
+	json doc;
+	doc["blocks"] = json::object();
+
+	for (const auto [id, blockPtr] : blocks)
+	{
+		if (!blockPtr->IsAlive())
+			continue;
+
+		json& blockObject = doc["blocks"][std::to_string(id)];
+		const auto& blockInfo = blockPtr->GetBlockInfo();
+
+		json& posObject = blockObject["pos"];
+		posObject["x"] = blockInfo.position.x;
+		posObject["y"] = blockInfo.position.y;
+
+		if (blockInfo.figureID != invalidID)
+			blockObject["figure"] = blockInfo.figureID;
+	}
+	
+	doc["figures"] = json::object();
+	json& figuresObj = doc["figures"];
+	for (const auto [id, figurePtr] : figures)
+	{
+		json& figureObject = doc["figures"][std::to_string(id)];
+		figureObject["type"] = figurePtr->GetType();
+
+		figureObject["blocks"] = json::array();
+		json& blocksObj = figureObject["blocks"];
+
+		for (const auto blockID : figurePtr->GetBlockIDs())
+		{
+			blocksObj.push_back(blockID);
+		}
+	}
+
+	return doc;
+}
+
+bool BlockScene::Load(const json& data, UWorld* world)
+{
+	figures.clear();
+	blocks.clear();
+
+	const json& doc = data;
+
+	const json& blocksObj = doc["blocks"];
+
+	for (json::const_iterator blockIt = blocksObj.begin(); blockIt != blocksObj.end(); ++blockIt)
+	{
+		const json& blockObj = blockIt.value();
+		GameBlock::BlockInfo blockInfo;
+
+		if (blockObj.contains("figure"))
+			blockInfo.figureID = blockObj["figure"].get<int>();
+
+		blockInfo.id = std::atoi(blockIt.key().c_str());
+		blockInfo.position.x = blockObj["pos"]["x"].get<int>();
+		blockInfo.position.y = blockObj["pos"]["y"].get<int>();
+
+		const GameBlock::Ptr newBlock = std::make_shared<GameBlock>();
+		newBlock->Init(blockInfo);
+		newBlock->CreateActor(world);
+
+		blocks[blockInfo.id] = newBlock;
+	}
+
+	const json& figuresObj = doc["figures"];
+	for (json::const_iterator figureIt = figuresObj.begin(); figureIt != figuresObj.end(); ++figureIt)
+	{
+		const auto figID = std::atoi(figureIt.key().c_str());
+		const json& figObj = figureIt.value();
+		const auto figType = figObj["type"].get<int>();
+
+		auto newFigurePtr = std::make_shared<Figure>(static_cast<Figure::FigType>(figType), figID);
+
+		std::vector<IDType> blockIds;
+		const json& blockIDsObj = figObj["blocks"];
+		for (json::const_iterator blockIDsIt = blockIDsObj.begin(); blockIDsIt != blockIDsObj.end(); ++blockIDsIt)
+			blockIds.push_back(blockIDsIt.value().get<int>());
+
+		newFigurePtr->SetBlockIDs(blockIds);
+
+		figures.emplace(newFigurePtr->GetID(), newFigurePtr);
+	}
+
+	return true;
 }

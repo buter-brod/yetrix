@@ -5,6 +5,7 @@
 
 #include "BlockScene.h"
 #include "YetrixConfig.h"
+#include "YetrixSaveGame.h"
 
 #include "YetrixGameModeBase.generated.h"
 
@@ -27,6 +28,9 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	bool CheckChangeDropState();
 
 	void Reset();
+
+	void Save();
+	bool Load();
 
 	void OnStartDestroying();
 	void OnStartDropping();
@@ -77,6 +81,8 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 
 	float dtAccum = 0.f;
 
+	int needUpdateScoreUI = 0;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float dt) override;
 
@@ -86,11 +92,15 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	void UpdateVisualDestroy(float progress);
 	
 	void AddScore(const int score);
-	void UpdateScoreUI() const;
+	void UpdateScoreUI();
+	void RequestUpdateScoreUI();
 	void UpdateSunlight(const float angle);
 	void UpdateSunMove(const float dt);
+
+	void UpdateSpeed();
 	
 	std::unique_ptr<State> statePtr;
+	int hiScore = 0;
 
 public:
 	void Left();

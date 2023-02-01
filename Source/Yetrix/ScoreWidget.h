@@ -17,12 +17,11 @@ class YETRIX_API UScoreWidget : public UUserWidget
 	GENERATED_BODY()
 
 public:
-
-	UScoreWidget(const FObjectInitializer&);
+	explicit UScoreWidget(const FObjectInitializer&);
 	
 	virtual void NativeConstruct() override;
 
-	void UpdateScoreCount(int value);
+	void UpdateScoreCount(int Value, int HiValue) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (BindWidget))
 	UTextBlock* txtScore = nullptr;

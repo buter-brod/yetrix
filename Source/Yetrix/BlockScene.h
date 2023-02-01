@@ -4,10 +4,13 @@
 #include <set>
 #include <map>
 
+#include "3rdparty/nlohmann/json_fwd.hpp"
+
 typedef unsigned long long IDType;
 constexpr IDType invalidID = std::numeric_limits<IDType>::max();
-
 constexpr float finalDestroyTimeMarker = -1.f;
+
+using json = nlohmann::json;
 
 struct Vec2D {
 
@@ -15,17 +18,17 @@ struct Vec2D {
 	int y = 0;
 
 	Vec2D(){}
-	Vec2D(int xx, int yy) : x(xx), y(yy){}
+	Vec2D(const int xx, const int yy) : x(xx), y(yy){}
 
-	inline bool operator==(const Vec2D& second) const {
+	bool operator==(const Vec2D& second) const {
 		return x == second.x && y == second.y;
 	}
 
-	inline bool operator!=(const Vec2D& second) const {
+	bool operator!=(const Vec2D& second) const {
 		return !(*this == second);
 	}
 
-	inline bool operator< (const Vec2D& second) const {
+	bool operator< (const Vec2D& second) const {
 		if (y != second.y)
 			return y < second.y;
 
@@ -48,44 +51,52 @@ class Figure;
 class GameBlock : public std::enable_shared_from_this<GameBlock> {
 public:
 	typedef std::shared_ptr<GameBlock> Ptr;
-
-	static IDType NewID();
-
+		
 	GameBlock() {
-		id = NewID();
 	}
 
 	~GameBlock();
 	
-
-	IDType GetID() const {return id;}
-	IDType GetFigureID() const {return figureID;}
-	const Vec2D& GetPosition() const {return position;}
-	bool IsAlive() const {return finalDestroyTimer == 0.f;}
-	bool IsFinallyDestroyed() const {return finalDestroyTimer == finalDestroyTimeMarker;}
+	IDType GetID() const {return info.id;}
+	IDType GetFigureID() const {return info.figureID;}
+	const Vec2D& GetPosition() const {return info.position;}
+	bool IsAlive() const {return finalDestroyTimer == 0.f;} //-V550
+	bool IsFinallyDestroyed() const {return finalDestroyTimer == finalDestroyTimeMarker;} //-V550
 	ABlockBase* GetActor() const {return actor;}
 
 	bool TickDestroy(float dt);
 	void StartDestroy();
 
 	void SetPosition(const Vec2D& newPos) {
-		position = newPos;
+		info.position = newPos;
 	}
 
-	void SetFigure(IDType figID) {figureID = figID;}
-
+	void SetFigure(const IDType figID) {info.figureID = figID;}
 	static FVector ToWorldPosition(const Vec2D pos);
 
 	ABlockBase* CreateActor(UWorld* world);
-	void UpdateActorPosition();
+	void UpdateActorPosition() const;
 
-private:
-	IDType id = 0;
-	Vec2D position;
+	struct BlockInfo {
+		IDType id = 0;
+		Vec2D position;
+		IDType figureID = invalidID;
 
+		static IDType NewID();
+
+		BlockInfo() : id(NewID()) {
+		}
+	};
+
+	void Init(const BlockInfo& givenInfo);
+
+	const BlockInfo& GetBlockInfo() const {return info;}
+
+private:	
+	BlockInfo info;
 	float finalDestroyTimer = 0.f;
+	
 	ABlockBase* actor = nullptr;
-	IDType figureID = invalidID;
 };
 
 class Figure : public std::enable_shared_from_this<Figure> {
@@ -107,14 +118,20 @@ public:
 
 	~Figure();
 
-	Figure(FigType newFigType) : type(newFigType) {
+	explicit Figure(const FigType newFigType) : type(newFigType) {
 		id = NewID();
 	}
 
+	explicit Figure(const FigType newFigType, const IDType givenId) : id(givenId), type(newFigType) {
+	}
+
 	IDType GetID() const { return id; }
+	FigType GetType() const {return type; }
 
 	std::vector<GameBlock::Ptr> CreateBlocks(const Vec2D& leftTop, UWorld* world);
 	const std::vector<IDType>& GetBlockIDs() const { return blockIDs; }
+
+	void SetBlockIDs(const std::vector<IDType>& ids) {blockIDs = ids;}
 
 	enum class AngleCW {
 		R0,
@@ -133,6 +150,7 @@ class BlockScene {
 
 public:
 	BlockScene();
+	~BlockScene();
 
 	bool CreateRandomFigureAt(const Vec2D& pos, UWorld* world);
 	bool CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world);
@@ -141,15 +159,18 @@ public:
 	GameBlock::Ptr GetBlock(IDType blockID) const;
 
 	typedef std::map<IDType, std::shared_ptr<Figure> > FigureMap;
-	typedef std::map<IDType,std::shared_ptr<GameBlock> > BlockMap;
+	typedef std::map<IDType, std::shared_ptr<GameBlock> > BlockMap;
 
 	FigureMap& GetFigures() {return figures;}
 	BlockMap& GetBlocks() {return blocks;}
 
+	json Save() const;
+	bool Load(const json& data, UWorld* world);
+
 	bool DeconstructFigures();
-	IDType GetLowestFigureID();
+	IDType GetLowestFigureID() const;
 	void CleanupBlocks(float dt);
-	bool CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance);
+	bool CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance) const;
 	bool MoveBlock(const Vec2D& direction);
 	bool TryRotate(Figure::Ptr figPtr);
 
@@ -158,10 +179,10 @@ public:
 	static bool InitSubclasses();
 
 protected:	
-	bool CanAddBlock(GameBlock::Ptr blockPtr);
+	bool CanAddBlock(GameBlock::Ptr blockPtr) const;
 	bool AddBlock(GameBlock::Ptr blockPtr);
-	bool CheckFigureBlockCanBePlaced(const Vec2D& position);
-	bool CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, unsigned& maxDistance);
+	bool CheckFigureBlockCanBePlaced(const Vec2D& position) const;
+	bool CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, unsigned& maxDistance) const;
 
 private:
 	FigureMap figures;

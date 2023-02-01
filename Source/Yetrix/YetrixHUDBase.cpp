@@ -24,7 +24,7 @@ void AYetrixHUDBase::Tick(float DeltaSeconds) {
 	Super::Tick(DeltaSeconds);
 }
 
-void AYetrixHUDBase::UpdateScore(int Value) {
+void AYetrixHUDBase::UpdateScore(int Value, int HiValue) {
 	if (scoreWidget)
-		scoreWidget->UpdateScoreCount(Value);
+		scoreWidget->UpdateScoreCount(Value, HiValue);
 }

@@ -4,9 +4,14 @@ UScoreWidget::UScoreWidget(const FObjectInitializer& initializer) : Super(initia
 
 }
 
-void UScoreWidget::UpdateScoreCount(int value) {
+void UScoreWidget::UpdateScoreCount(int Value, int HiValue) const
+{
+	FString scoreString = FString::FromInt(Value);
 
-	txtScore->SetText(FText::FromString(FString::FromInt(value)));
+	if (HiValue > 0)
+		scoreString = scoreString + "/" + FString::FromInt(HiValue);
+
+	txtScore->SetText(FText::FromString(scoreString));
 }
 
 void UScoreWidget::NativeConstruct() {

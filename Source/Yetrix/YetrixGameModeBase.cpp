@@ -9,6 +9,8 @@
 #include "YetrixHUDBase.h"
 #include "YetrixConfig.h"
 
+#include "3rdparty/nlohmann/json.hpp"
+
 #include "Utils.h"
 
 AYetrixGameModeBase::AYetrixGameModeBase() {
@@ -86,6 +88,7 @@ void AYetrixGameModeBase::BeginPlay() {
 	yetrixPawn->SetGameMode(this);
 
 	Reset();
+	Load();
 }
 
 void AYetrixGameModeBase::OnStartDestroying() {
@@ -130,18 +133,24 @@ void AYetrixGameModeBase::OnStartDropping() {
 		statePtr->lightAngleStart = statePtr->lightAngleCurrent;
 		statePtr->lightAngleEnd += lightZRotationAddPerExplosion;
 		statePtr->sunMoveFinishTimer = sunMoveDuration;
-
-		statePtr->stillStateDuration *= speedUpCoeff;
-		statePtr->dropStateDuration *= speedUpCoeff;
 	}
 	
 	CheckAddFigures();
 }
 
+void AYetrixGameModeBase::UpdateSpeed()
+{
+	const float speedMultiplier = std::powf(speedUpCoeff, statePtr->score / 10.f);
+
+	statePtr->stillStateDuration = stillStateInitialDuration * speedMultiplier;
+	statePtr->dropStateDuration = dropStateInitialDuration * speedMultiplier;
+}
+
 void AYetrixGameModeBase::AddScore(const int score) {
 
 	statePtr->score += score;
-	UpdateScoreUI();
+	RequestUpdateScoreUI();
+	UpdateSpeed();
 }
 
 void AYetrixGameModeBase::UpdateSunMove(const float dt) {
@@ -182,8 +191,11 @@ void AYetrixGameModeBase::UpdateSunlight(const float angle) {
 	sunlightActor->SetActorRotation(rotation);
 }
 
-void AYetrixGameModeBase::UpdateScoreUI() const
+void AYetrixGameModeBase::UpdateScoreUI()
 {
+	if (needUpdateScoreUI > 0)
+		needUpdateScoreUI--;
+
 	const auto* world = GetWorld();
 	if (!world)
 		return;
@@ -192,40 +204,40 @@ void AYetrixGameModeBase::UpdateScoreUI() const
 	if (!hud)
 		return;
 
-	hud->UpdateScore(statePtr->score);
+	hud->UpdateScore(statePtr->score, hiScore);
 }
 
 void AYetrixGameModeBase::CheckAddFigures() {
 
-	if (statePtr->blockScenePtr->GetFigures().size() < minFigures)
-	{
-		const bool added = statePtr->blockScenePtr->CreateRandomFigureAt({newFigureX, newFigureY}, GetWorld());
-		if (!added) {
-			// Game over
-			Reset();
-			PlaySound("gameover");
-		}
-	}
+	if (statePtr->blockScenePtr->GetFigures().size() >= minFigures)
+		return;
+
+	const bool added = statePtr->blockScenePtr->CreateRandomFigureAt({ newFigureX, newFigureY }, GetWorld());
+	if (!added) {
+		// Game over
+
+		if (statePtr->score > hiScore)
+			hiScore = statePtr->score;
+
+		Reset();
+		Save();
+		PlaySound("gameover");
+	}	
 }
 
 void AYetrixGameModeBase::Left() {
 	
 	statePtr->leftPending++;
-
-	PlaySound("k0");
 }
 
 void AYetrixGameModeBase::Right() {
 
 	statePtr->rightPending++;
-
-	PlaySound("k1");
 }
 
 void AYetrixGameModeBase::Rotate() {
 
 	statePtr->rotatePending++;
-	PlaySound("k2");
 }
 
 void AYetrixGameModeBase::Drop() {
@@ -238,7 +250,7 @@ void AYetrixGameModeBase::Drop() {
 void AYetrixGameModeBase::Down() {
 	if (statePtr->currDropState == DropState::STILL)
 	{
-		PlaySound("k3");
+		PlaySound("k2");
 		statePtr->dropStateTimer = 0.f;
 	}
 }
@@ -343,12 +355,50 @@ void AYetrixGameModeBase::FinalizeLogicalDrop() {
 void AYetrixGameModeBase::OnStopDestroying() {
 	UpdateVisualDestroy(1.f);
 	FinalizeLogicalDestroy();
+
+	Save();
 }
 
 void AYetrixGameModeBase::OnStopDropping() {
 
 	UpdateVisualDrop(1.f);
 	FinalizeLogicalDrop();
+}
+
+void AYetrixGameModeBase::Save()
+{
+	json doc;
+	doc["blockScene"] = statePtr->blockScenePtr->Save();
+	doc["score"] = statePtr->score;
+	doc["hiscore"] = hiScore;
+
+	auto* saveGame = Cast<UYetrixSaveGame>(UGameplayStatics::CreateSaveGameObject(UYetrixSaveGame::StaticClass()));
+
+	const auto dumpStr = doc.dump();
+	saveGame->jsonDump = dumpStr.c_str();
+
+	UGameplayStatics::SaveGameToSlot(saveGame, "0", 0);
+}
+
+bool AYetrixGameModeBase::Load()
+{
+	const auto* saveGame = Cast<UYetrixSaveGame>(UGameplayStatics::LoadGameFromSlot("0", 0));
+	if (saveGame == nullptr)
+	{
+		return false;
+	}
+
+	const std::string dataStr(TCHAR_TO_UTF8(*saveGame->jsonDump));
+	json doc = json::parse(dataStr);
+
+	statePtr->blockScenePtr->Load(doc["blockScene"], GetWorld());
+	statePtr->score = doc["score"].get<int>();
+	hiScore = doc["hiscore"].get<int>();
+
+	RequestUpdateScoreUI();
+	UpdateSpeed();
+
+	return true;
 }
 
 bool AYetrixGameModeBase::CheckChangeDropState() {
@@ -375,10 +425,15 @@ bool AYetrixGameModeBase::CheckChangeDropState() {
 	return true;
 }
 
+void AYetrixGameModeBase::RequestUpdateScoreUI()
+{
+	needUpdateScoreUI++;
+}
+
 void AYetrixGameModeBase::Reset() {
 
 	statePtr = std::make_unique<State>();
-	UpdateScoreUI();
+	RequestUpdateScoreUI();
 	UpdateSunlight(lightZRotationInit);
 }
 
@@ -423,19 +478,19 @@ void AYetrixGameModeBase::UpdateVisualDrop(const float progress) {
 
 	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
 
-	auto& figures = statePtr->blockScenePtr->GetFigures();
-	for (auto& figure : figures) {
+	const auto& figures = statePtr->blockScenePtr->GetFigures();
+	for (const auto& [figID, figPtr] : figures) {
 		
 		unsigned maxHeight = 0;
-		const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(figure.second, {0, -1}, maxHeight);
+		const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(figPtr, {0, -1}, maxHeight);
 		if (!canDrop)
 			continue;
 
-		const bool isLowestOne = figure.first == lowestFigID;
+		const bool isLowestOne = figID == lowestFigID;
 		const bool canQuickDrop = isLowestOne && statePtr->quickDropRequested; 
 		const int heightToDrop = canQuickDrop ? maxHeight : 1;
 		
-		const auto& blockIDs = figure.second->GetBlockIDs();
+		const auto& blockIDs = figPtr->GetBlockIDs();
 		
 		for (const auto blockID : blockIDs) {
 			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
@@ -478,14 +533,19 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 			statePtr->leftPending--;
 
 			const bool moveOk = statePtr->blockScenePtr->MoveBlock({-1, 0});
-			if (!moveOk)
+			if (moveOk)
+				PlaySound("k0");
+			else
 				break;
 		}
 		while (statePtr->rightPending) {
 
+			
 			statePtr->rightPending--;
 			const bool moveOk = statePtr->blockScenePtr->MoveBlock({1, 0});
-			if (!moveOk)
+			if (moveOk)
+				PlaySound("k1");
+			else
 				break;
 		}
 
@@ -497,7 +557,9 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 			if (lowestFigID != invalidID) {
 				const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
 				const bool rotated = statePtr->blockScenePtr->TryRotate(figure);
-			}			
+				if (rotated)
+					PlaySound("k2");
+			}
 		}
 	}
 
@@ -511,5 +573,8 @@ void AYetrixGameModeBase::Tick(float dt) {
 	{
 		dtAccum -= simulationUpdateInterval;
 		SimulationTick(simulationUpdateInterval);
-	}	
+	}
+
+	if (needUpdateScoreUI > 0)
+		UpdateScoreUI();
 }

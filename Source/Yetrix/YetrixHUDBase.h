@@ -26,7 +26,7 @@ class YETRIX_API AYetrixHUDBase : public AHUD
 	TSubclassOf<UUserWidget> ScoreWidgetClass;
 
 public:
-	void UpdateScore(int Value);
+	void UpdateScore(int Value, int HiValue);
 
 private:
 	UScoreWidget* scoreWidget = nullptr;

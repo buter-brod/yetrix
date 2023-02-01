@@ -6,7 +6,7 @@ constexpr float blockSize = 100.f;
 constexpr float destroyActorAfter = 3.f;
 constexpr float simulationUpdateInterval = 0.01f;
 
-constexpr float speedUpCoeff = 0.95f;
+constexpr float speedUpCoeff = 0.99f;
 
 constexpr float destroyYShift = 300.f;
 
