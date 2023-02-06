@@ -16,7 +16,7 @@
 AYetrixGameModeBase::AYetrixGameModeBase() {
 
 	PrimaryActorTick.bCanEverTick = true;
-	BlockScene::InitSubclasses();
+	GameBlock::InitSubclasses();
 	PlayerControllerClass = AYetrixPlayerController::StaticClass();
 
 	InitSounds();
@@ -265,7 +265,7 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 		{
 			Vec2D checkPos(x, y);
 			const auto blockPtr = statePtr->blockScenePtr->GetBlock(checkPos, true);
-			if (!blockPtr || !blockPtr->IsAlive() || blockPtr->GetFigureID() != invalidID) {
+			if (!blockPtr || !blockPtr->IsAlive() || blockPtr->GetFigureID() != Utils::emptyID) {
 				hasHoles = true;
 				break;
 			}				
@@ -554,8 +554,13 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 			statePtr->rotatePending--;
 
 			const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
-			if (lowestFigID != invalidID) {
+			if (lowestFigID != Utils::emptyID) {
 				const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
+
+				if (figure->GetType() == Figure::FigType::BOX)
+					continue;
+					// no need to rotate box figure
+
 				const bool rotated = statePtr->blockScenePtr->TryRotate(figure);
 				if (rotated)
 					PlaySound("k2");

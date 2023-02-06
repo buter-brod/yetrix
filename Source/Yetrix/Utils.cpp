@@ -9,6 +9,33 @@ static const float RANDOM_STRENGTH = 5000.f;
 
 namespace Utils {
 
+	
+	std::mt19937& localRnd() {
+
+		static std::random_device rd;
+		static std::mt19937 rnd(rd());
+		return rnd;
+	}
+
+	std::string NewID()
+	{
+		static const std::string symbols = "0123456789abcdef";
+		static std::uniform_int_distribution<int> distribution(0, symbols.size() - 1);
+
+		constexpr size_t idSize = 6;
+
+		std::string result;
+		result.reserve(idSize);
+
+		while (result.size() < idSize)
+		{
+			const auto index = distribution(localRnd());
+			result += symbols.at(index);
+		}
+
+		return result;
+	}
+
 	bool rndYesNo() {
 		return rnd0xi(2) == 0;
 	}

@@ -1,68 +1,15 @@
 #include "BlockScene.h"
 #include "YetrixConfig.h"
-#include <array>
 #include <random>
+#include "Figure.h"
 
 #include "3rdparty/nlohmann/json.hpp"
-
-typedef std::array<std::array<bool, 4>, 2> FigureConfigArr;
-
-static TSubclassOf<class ABlockBase> BlockBPClass;
-
-std::mt19937& localRnd() {
-
-	static std::mt19937 rnd(0);
-	return rnd;
-}
-
-bool BlockScene::InitSubclasses() {
-
-	const bool wasNeedInit = !BlockBPClass.Get();
-	if (wasNeedInit) {
-		const ConstructorHelpers::FObjectFinder<UClass> blueprint_finder_BlockBP(TEXT("Blueprint'/Game/BlockBP.BlockBP_C'"));
-		BlockBPClass = (UClass*) blueprint_finder_BlockBP.Object;
-	}
-	
-	return wasNeedInit;
-}
-
-const FigureConfigArr& GetFigureConfig(const Figure::FigType type) {
-
-	static std::map<Figure::FigType, FigureConfigArr> configArrMap;
-
-	const auto& configIt = configArrMap.find(type);
-	if (configIt != configArrMap.end())
-		return configIt->second;
-	
-	configArrMap[Figure::FigType::LONG]       = {{{1,1,1,1}, {0,0,0,0}}};
-	configArrMap[Figure::FigType::LEFT_BOOT]  = {{{1,0,0,0}, {1,1,1,0}}};
-	configArrMap[Figure::FigType::RIGHT_BOOT] = {{{0,0,1,0}, {1,1,1,0}}};
-	configArrMap[Figure::FigType::BOX]        = {{{1,1,0,0}, {1,1,0,0}}};
-	configArrMap[Figure::FigType::LEFT_GUN]   = {{{0,1,1,0}, {1,1,0,0}}};
-	configArrMap[Figure::FigType::RIGHT_GUN]  = {{{1,1,0,0}, {0,1,1,0}}};
-	configArrMap[Figure::FigType::HAT]        = {{{0,1,0,0}, {1,1,1,0}}};
-
-	const auto& configArr = configArrMap.at(type);
-
-	return configArr;
-}
-
-IDType GameBlock::BlockInfo::NewID() {
-	static IDType id = 0;
-	return id++;
-}
-
-IDType Figure::NewID() {
-	static IDType id = 0;
-	return id++;
-}
 
 BlockScene::BlockScene(){
 }
 
 BlockScene::~BlockScene()
-{
-	
+{	
 }
 
 bool BlockScene::CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world) {
@@ -90,7 +37,7 @@ bool BlockScene::CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* 
 bool BlockScene::CreateRandomFigureAt(const Vec2D& pos, UWorld* world) {
 
 	std::uniform_int_distribution<int> uni(0, static_cast<int>(Figure::FigType::UNDEFINED) - 1);
-	const Figure::FigType figType = static_cast<Figure::FigType> (uni(localRnd()));
+	const Figure::FigType figType = static_cast<Figure::FigType> (uni(Utils::localRnd()));
 	const bool figAdded = CreateFigureAt(figType, pos, world);
 	return figAdded;
 }
@@ -127,14 +74,19 @@ bool BlockScene::AddBlock(GameBlock::Ptr blockPtr) {
 	if (!canAdd)
 		return false;
 
-	blocks.emplace(blockPtr->GetID(), blockPtr);
+	const auto newBlockID = blockPtr->GetID();
+
+	if (blocks.count(newBlockID) > 0)
+	{
+		// duplicate ID, cannot add?
+		return false;
+	}
+
+	blocks.emplace(newBlockID, blockPtr);
 	return true;
 }
 
-Figure::~Figure() {
-}
-
-Vec2D GetRotated(Figure::AngleCW angle, Vec2D coord) {
+Vec2D GetRotated(Figure::AngleCW angle, const Vec2D coord) {
 
 	Vec2D rotated = coord;
 	int rotateIterations = static_cast<int>(angle);
@@ -147,7 +99,7 @@ Vec2D GetRotated(Figure::AngleCW angle, Vec2D coord) {
 	return rotated;
 }
 
-bool BlockScene::TryRotate(Figure::Ptr figPtr) {
+bool BlockScene::TryRotate(const Figure::Ptr figPtr) {
 
 	static const std::vector<Vec2D> validOffsets = {{0, 0}, {1, 0}, {-1, 0}, {0, -1}, {0, 1}};
 	const auto& blockIDs = figPtr->GetBlockIDs();
@@ -203,95 +155,6 @@ bool BlockScene::TryRotate(Figure::Ptr figPtr) {
 	return false;
 }
 
-void GameBlock::Init(const BlockInfo& givenInfo)
-{
-	info = givenInfo;
-}
-
-std::vector<GameBlock::Ptr> Figure::CreateBlocks(const Vec2D& leftTop, UWorld* world) {
-
-	std::vector<GameBlock::Ptr> newBlocks;
-	const auto& figConfig = GetFigureConfig(type);
-
-	const int xSize = figConfig[0].size();
-	const int ySize = figConfig.size();
-
-	for (int x = 0; x < xSize; ++x) {
-		for (int y = 0; y < ySize; ++y) {
-
-			const bool hasBlock = figConfig[y][x];
-			if (!hasBlock)
-				continue;
-
-			
-			GameBlock::BlockInfo newBlockInfo;
-			newBlockInfo.position = {leftTop.x + x, leftTop.y - y};
-			newBlockInfo.figureID = GetID();
-
-			GameBlock::Ptr newBlock = std::make_shared<GameBlock>();
-			newBlock->Init(newBlockInfo);
-			newBlock->CreateActor(world);
-
-			newBlocks.push_back(newBlock);
-			blockIDs.push_back(newBlock->GetID());
-		}
-	}
-
-	return newBlocks;
-}
-
-FVector GameBlock::ToWorldPosition(const Vec2D pos){
-
-	FVector worldPos;
-	worldPos.X = pos.x * blockSize;
-	worldPos.Z = pos.y * blockSize;
-
-	return worldPos;
-}
-
-GameBlock::~GameBlock() {
-	if(IsValid(actor))
-		actor->Destroy();
-}
-
-bool GameBlock::TickDestroy(const float dt) {
-
-	if (finalDestroyTimer > 0.f)
-		finalDestroyTimer -= dt;
-
-	if (finalDestroyTimer < 0.f) {
-		finalDestroyTimer = finalDestroyTimeMarker;
-		
-		return true;
-	}
-
-	return false;
-}
-
-void GameBlock::StartDestroy() {
-
-	finalDestroyTimer = destroyActorAfter;
-}
-
-ABlockBase* GameBlock::CreateActor(UWorld* world) {
-
-	const FRotator rotator = FRotator::ZeroRotator;
-	const FActorSpawnParameters spawnParams;
-	const FVector spawnLocation = ToWorldPosition(info.position);
-
-	const auto newBlockActor = world->SpawnActor<ABlockBase>(BlockBPClass, spawnLocation, rotator, spawnParams);
-	actor = newBlockActor;
-	return actor;
-}
-
-void GameBlock::UpdateActorPosition() const
-{
-	if (!actor)
-		return;
-
-	actor->SetActorLocation(ToWorldPosition(info.position));
-}
-
 bool BlockScene::DeconstructFigures() {
 
 	std::set<IDType> figuresToDeconstruct;
@@ -310,7 +173,7 @@ bool BlockScene::DeconstructFigures() {
 		const auto& blockIDs = fig->GetBlockIDs();
 		for (const auto blockID : blockIDs) {
 			const auto block = GetBlock(blockID);
-			block->SetFigure(invalidID);
+			block->SetFigure(Utils::emptyID);
 		}
 
 		figures.erase(figID);
@@ -324,7 +187,7 @@ bool BlockScene::MoveBlock(const Vec2D& direction) {
 
 	const auto lowestFigID = GetLowestFigureID();
 
-	if (lowestFigID == invalidID)
+	if (lowestFigID == Utils::emptyID)
 		return false;
 
 	const auto& figure = GetFigures().at(lowestFigID);
@@ -365,7 +228,7 @@ std::map<IDType, Vec2D> BlockScene::GetFallingPositions(const std::set<int>& des
 
 		for (int x = 1; x < rightBorderX; ++x) {
 			const auto block = GetBlock({x, y}, true);
-			if (block && block->IsAlive() && block->GetFigureID() == invalidID)
+			if (block && block->IsAlive() && block->GetFigureID() == Utils::emptyID)
 			{
 				const int newY = y - fallAccum;
 				const auto id = block->GetID();
@@ -388,7 +251,7 @@ bool BlockScene::CheckFigureBlockCanBePlaced(const Vec2D& position) const
 	if (!blockAtPosition)
 		return true;
 
-	const bool belongsToExistingFigure = blockAtPosition->GetFigureID() != invalidID;
+	const bool belongsToExistingFigure = blockAtPosition->GetFigureID() != Utils::emptyID;
 	const bool free = belongsToExistingFigure;
 	return free;
 }
@@ -434,7 +297,7 @@ bool BlockScene::CheckFigureCanMove(const Figure::Ptr figPtr, const Vec2D direct
 
 IDType BlockScene::GetLowestFigureID() const
 {	
-	IDType lowestFigID = invalidID;
+	IDType lowestFigID = Utils::emptyID;
 	int lowestBlockY = std::numeric_limits<int>::max();
 
 	for (const auto& [id, figPtr] : figures) {
@@ -479,14 +342,14 @@ json BlockScene::Save() const
 		if (!blockPtr->IsAlive())
 			continue;
 
-		json& blockObject = doc["blocks"][std::to_string(id)];
+		json& blockObject = doc["blocks"][id];
 		const auto& blockInfo = blockPtr->GetBlockInfo();
 
 		json& posObject = blockObject["pos"];
 		posObject["x"] = blockInfo.position.x;
 		posObject["y"] = blockInfo.position.y;
 
-		if (blockInfo.figureID != invalidID)
+		if (blockInfo.figureID != Utils::emptyID)
 			blockObject["figure"] = blockInfo.figureID;
 	}
 	
@@ -494,7 +357,7 @@ json BlockScene::Save() const
 	json& figuresObj = doc["figures"];
 	for (const auto [id, figurePtr] : figures)
 	{
-		json& figureObject = doc["figures"][std::to_string(id)];
+		json& figureObject = doc["figures"][id];
 		figureObject["type"] = figurePtr->GetType();
 
 		figureObject["blocks"] = json::array();
@@ -502,6 +365,12 @@ json BlockScene::Save() const
 
 		for (const auto blockID : figurePtr->GetBlockIDs())
 		{
+			if (blocks.count(blockID) == 0)
+			{
+				// oops, this block doesn't exist. Very sad and needs debugging.
+				continue;
+			}
+
 			blocksObj.push_back(blockID);
 		}
 	}
@@ -524,9 +393,9 @@ bool BlockScene::Load(const json& data, UWorld* world)
 		GameBlock::BlockInfo blockInfo;
 
 		if (blockObj.contains("figure"))
-			blockInfo.figureID = blockObj["figure"].get<int>();
+			blockInfo.figureID = blockObj["figure"].get<IDType>();
 
-		blockInfo.id = std::atoi(blockIt.key().c_str());
+		blockInfo.id = blockIt.key().c_str();
 		blockInfo.position.x = blockObj["pos"]["x"].get<int>();
 		blockInfo.position.y = blockObj["pos"]["y"].get<int>();
 
@@ -540,7 +409,7 @@ bool BlockScene::Load(const json& data, UWorld* world)
 	const json& figuresObj = doc["figures"];
 	for (json::const_iterator figureIt = figuresObj.begin(); figureIt != figuresObj.end(); ++figureIt)
 	{
-		const auto figID = std::atoi(figureIt.key().c_str());
+		const IDType figID = figureIt.key();
 		const json& figObj = figureIt.value();
 		const auto figType = figObj["type"].get<int>();
 
@@ -548,8 +417,17 @@ bool BlockScene::Load(const json& data, UWorld* world)
 
 		std::vector<IDType> blockIds;
 		const json& blockIDsObj = figObj["blocks"];
-		for (json::const_iterator blockIDsIt = blockIDsObj.begin(); blockIDsIt != blockIDsObj.end(); ++blockIDsIt)
-			blockIds.push_back(blockIDsIt.value().get<int>());
+		for (json::const_iterator blockIDsIt = blockIDsObj.begin(); blockIDsIt != blockIDsObj.end(); ++blockIDsIt) {
+
+			const auto blockID = blockIDsIt.value().get<IDType>();
+			if (blocks.count(blockID) == 0)
+			{
+				// oops, this block doesn't exist. Savegame corrupted?
+				continue;
+			}
+
+			blockIds.push_back(blockID);
+		}
 
 		newFigurePtr->SetBlockIDs(blockIds);
 
