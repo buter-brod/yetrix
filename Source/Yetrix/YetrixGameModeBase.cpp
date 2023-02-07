@@ -406,6 +406,11 @@ bool AYetrixGameModeBase::CheckChangeDropState() {
 	if (statePtr->dropStateTimer >= 0.f)
 		return false;
 
+	if (statePtr->currDropState == DropState::ROTATING) {
+		statePtr->currDropState = DropState::STILL;
+		statePtr->dropStateTimer = statePtr->stillStateDuration;
+	}
+
 	if (statePtr->currDropState == DropState::STILL) {
 		statePtr->currDropState = DropState::DROPPING;
 		statePtr->dropStateTimer = statePtr->dropStateDuration;	
@@ -510,6 +515,31 @@ void AYetrixGameModeBase::UpdateVisualDrop(const float progress) {
 	}
 }
 
+bool AYetrixGameModeBase::TryRotate()
+{
+	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
+
+	if (lowestFigID == Utils::emptyID)
+		return false;
+
+	const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
+
+	if (figure->GetType() == Figure::FigType::BOX)
+		return false;
+		// no need to rotate box figure
+
+	const bool rotated = statePtr->blockScenePtr->TryRotate(figure);
+	if (rotated) {
+
+		PlaySound("k2");
+
+		statePtr->currDropState = DropState::ROTATING;
+		statePtr->dropStateTimer = rotateStateInitialDuration;
+	}
+
+	return rotated;
+}
+
 void AYetrixGameModeBase::SimulationTick(float dt) {
 
 	UpdateSunMove(dt);
@@ -521,7 +551,6 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 
 		const float dropProgress = 1.f - (statePtr->dropStateTimer / statePtr->destroyStateDuration);
 		UpdateVisualDestroy(dropProgress);
-
 	}
 	else if (statePtr->currDropState == DropState::DROPPING) {
 		const float dropProgress = 1.f - (statePtr->dropStateTimer / statePtr->dropStateDuration);
@@ -532,7 +561,7 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 		{
 			statePtr->leftPending--;
 
-			const bool moveOk = statePtr->blockScenePtr->MoveBlock({-1, 0});
+			const bool moveOk = statePtr->blockScenePtr->TryMoveBlock({-1, 0});
 			if (moveOk)
 				PlaySound("k0");
 			else
@@ -540,9 +569,8 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 		}
 		while (statePtr->rightPending) {
 
-			
 			statePtr->rightPending--;
-			const bool moveOk = statePtr->blockScenePtr->MoveBlock({1, 0});
+			const bool moveOk = statePtr->blockScenePtr->TryMoveBlock({1, 0});
 			if (moveOk)
 				PlaySound("k1");
 			else
@@ -553,22 +581,13 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 		{
 			statePtr->rotatePending--;
 
-			const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
-			if (lowestFigID != Utils::emptyID) {
-				const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
-
-				if (figure->GetType() == Figure::FigType::BOX)
-					continue;
-					// no need to rotate box figure
-
-				const bool rotated = statePtr->blockScenePtr->TryRotate(figure);
-				if (rotated)
-					PlaySound("k2");
-			}
+			const bool rotated = TryRotate();
+			if (!rotated) 
+				break;
 		}
 	}
 
-	statePtr->blockScenePtr->CleanupBlocks(dt);
+	statePtr->blockScenePtr->Tick(dt);
 }
 
 void AYetrixGameModeBase::Tick(float dt) {

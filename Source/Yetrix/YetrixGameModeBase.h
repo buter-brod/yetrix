@@ -22,7 +22,8 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	enum class DropState {
 		STILL,
 		DROPPING,
-		DESTROYING
+		DESTROYING,
+		ROTATING
 	};
 
 	bool CheckChangeDropState();
@@ -89,6 +90,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	void SimulationTick(float dt);
 	void CheckAddFigures();
 	void UpdateVisualDrop(float progress);
+	bool TryRotate();
 	void UpdateVisualDestroy(float progress);
 	
 	void AddScore(const int score);

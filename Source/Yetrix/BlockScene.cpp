@@ -78,7 +78,7 @@ bool BlockScene::AddBlock(GameBlock::Ptr blockPtr) {
 
 	if (blocks.count(newBlockID) > 0)
 	{
-		// duplicate ID, cannot add?
+		checkf(false, TEXT("BlockScene::AddBlock error, duplicate ID %s"), TCHARIFYSTDSTRING(blockPtr->GetID()));
 		return false;
 	}
 
@@ -143,8 +143,7 @@ bool BlockScene::TryRotate(const Figure::Ptr figPtr) {
 
 				for (const auto& block : figBlocks) {
 					const auto rotated = getBlockRotatedPos(block->GetPosition());
-					block->SetPosition(rotated);
-					block->UpdateActorPosition();
+					block->SetPosition(rotated, rotateStateInitialDuration);
 				}
 
 				return true;
@@ -183,15 +182,21 @@ bool BlockScene::DeconstructFigures() {
 	return deconstructed;
 }
 
-bool BlockScene::MoveBlock(const Vec2D& direction) {
+bool BlockScene::TryMoveBlock(const Vec2D& direction) {
 
 	const auto lowestFigID = GetLowestFigureID();
 
 	if (lowestFigID == Utils::emptyID)
 		return false;
 
-	const auto& figure = GetFigures().at(lowestFigID);
+	const auto& figIt = figures.find(lowestFigID);
+	if (figIt == figures.end())
+	{
+		checkf(false, TEXT("BlockScene::TryMoveBlock error, no lowest figure"));
+		return false;
+	}
 
+	const auto& figure = figIt->second;
 	unsigned distance = 0;
 	const bool canMove = CheckFigureCanMove(figure, direction, distance);
 
@@ -203,7 +208,7 @@ bool BlockScene::MoveBlock(const Vec2D& direction) {
 		const auto block = GetBlock(blockID);
 		const auto& prevPos = block->GetPosition();
 		const auto newPos = prevPos + direction;
-		block->SetPosition(newPos);
+		block->SetPosition(newPos, moveLeftRightAnimDuration);
 		block->UpdateActorPosition();
 	}
 
@@ -318,6 +323,16 @@ IDType BlockScene::GetLowestFigureID() const
 	return lowestFigID;
 }
 
+void BlockScene::Tick(const float dt)
+{
+	CleanupBlocks(dt);
+
+	for (const auto& blockPair : blocks)
+	{
+		blockPair.second->Tick(dt);
+	}
+}
+
 void BlockScene::CleanupBlocks(const float dt) {
 
 	std::set<IDType> blocksToDestroy;
@@ -367,7 +382,7 @@ json BlockScene::Save() const
 		{
 			if (blocks.count(blockID) == 0)
 			{
-				// oops, this block doesn't exist. Very sad and needs debugging.
+				checkf(false, TEXT("BlockScene::Save error, figure %s refers to block %s, which doesn't exist. Cannot save game properly"), TCHARIFYSTDSTRING(figurePtr->GetID()), TCHARIFYSTDSTRING(blockID));
 				continue;
 			}
 
@@ -422,7 +437,7 @@ bool BlockScene::Load(const json& data, UWorld* world)
 			const auto blockID = blockIDsIt.value().get<IDType>();
 			if (blocks.count(blockID) == 0)
 			{
-				// oops, this block doesn't exist. Savegame corrupted?
+				checkf(false, TEXT("BlockScene::Load figure %s refers to block %s, which doesn't exist. Cannot load game properly"), TCHARIFYSTDSTRING(newFigurePtr->GetID()), TCHARIFYSTDSTRING(blockID));
 				continue;
 			}
 

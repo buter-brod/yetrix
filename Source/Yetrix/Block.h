@@ -25,15 +25,15 @@ public:
 	bool TickDestroy(float dt);
 	void StartDestroy();
 
-	void SetPosition(const Vec2D& newPos) {
-		info.position = newPos;
-	}
+	void SetPosition(const Vec2D& newPos, const float animDuration = 0.f);
 
 	void SetFigure(const IDType figID) {info.figureID = figID;}
 	static FVector ToWorldPosition(const Vec2D pos);
 
 	ABlockBase* CreateActor(UWorld* world);
 	void UpdateActorPosition() const;
+
+	void Tick(const float dt);
 
 	struct BlockInfo {
 		IDType id = Utils::emptyID;
@@ -52,7 +52,10 @@ private:
 	BlockInfo info;
 	float finalDestroyTimer = 0.f;
 
-	Vec2D fromPosition;
+	FVector fromPosition;
+	FVector toPosition;
+	float animDuration = 0.f;
+	float moveTimer = 0.f;
 
 	bool finalDestroyRequested = false;
 	

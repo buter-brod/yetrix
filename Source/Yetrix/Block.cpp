@@ -25,6 +25,7 @@ FVector GameBlock::ToWorldPosition(const Vec2D pos){
 
 	FVector worldPos;
 	worldPos.X = pos.x * blockSize;
+	worldPos.Y = 0.0;
 	worldPos.Z = pos.y * blockSize;
 
 	return worldPos;
@@ -33,6 +34,24 @@ FVector GameBlock::ToWorldPosition(const Vec2D pos){
 GameBlock::~GameBlock() {
 	if(IsValid(actor))
 		actor->Destroy();
+}
+
+void GameBlock::SetPosition(const Vec2D& newPos, const float theAnimDuration) {
+
+	if (info.position == newPos)
+		return;
+
+	info.position = newPos;
+
+	if (theAnimDuration > 0.f)
+	{
+		fromPosition = actor->GetActorLocation();
+		toPosition = ToWorldPosition(info.position);
+		animDuration = theAnimDuration;
+		moveTimer = animDuration;
+	}
+
+	UpdateActorPosition();
 }
 
 bool GameBlock::TickDestroy(const float dt) {
@@ -63,10 +82,37 @@ ABlockBase* GameBlock::CreateActor(UWorld* world) {
 	return actor;
 }
 
+void GameBlock::Tick(const float dt)
+{
+	if (moveTimer > 0.f)
+	{
+		moveTimer -= dt;
+		UpdateActorPosition();
+	}
+}
+
 void GameBlock::UpdateActorPosition() const
 {
 	if (!actor)
 		return;
 
-	actor->SetActorLocation(ToWorldPosition(info.position));
+	FVector resultPosition;
+
+	if (moveTimer <= 0.f)
+	{
+		// no animation needed
+		resultPosition = ToWorldPosition(info.position);
+	}
+	else
+	{
+		// needs interpolated animation
+
+		const auto elapsed = animDuration - moveTimer;
+		const auto progress = elapsed / animDuration;
+
+		const auto fullDeltsPos = toPosition - fromPosition;
+		resultPosition = fromPosition + fullDeltsPos * progress;
+	}
+
+	actor->SetActorLocation(resultPosition);
 }

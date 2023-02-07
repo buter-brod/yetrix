@@ -8,10 +8,7 @@
 
 #include "3rdparty/nlohmann/json_fwd.hpp"
 
-
 using json = nlohmann::json;
-
-
 
 class BlockScene {
 
@@ -36,9 +33,12 @@ public:
 
 	bool DeconstructFigures();
 	IDType GetLowestFigureID() const;
+
+	void Tick(float dt);
 	void CleanupBlocks(float dt);
+	
 	bool CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance) const;
-	bool MoveBlock(const Vec2D& direction);
+	bool TryMoveBlock(const Vec2D& direction);
 	bool TryRotate(Figure::Ptr figPtr);
 
 	std::map<IDType, Vec2D> GetFallingPositions(const std::set<int>& destroyedLines) const;

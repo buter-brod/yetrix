@@ -3,8 +3,7 @@
 #include <random>
 #include <string>
 
-// time in microseconds since epoch
-typedef unsigned long long time_us;
+#define TCHARIFYSTDSTRING(X) UTF8_TO_TCHAR(X.c_str())
 
 typedef std::string IDType;
 constexpr float timeNotDefined = std::numeric_limits<float>::min();
