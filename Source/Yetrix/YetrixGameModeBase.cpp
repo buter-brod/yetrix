@@ -3,7 +3,6 @@
 #include "BlockBase.h"
 #include "YetrixPawn.h"
 
-#include "GeometryCollection/GeometryCollectionComponent.h"
 #include "Engine/DamageEvents.h"
 
 #include "YetrixHUDBase.h"
@@ -295,14 +294,7 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 		{
 			Vec2D blockPos(x, y);
 			const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockPos, true);
-
 			blockPtr->StartDestroy();
-
-			TArray<UActorComponent*> components;
-			blockPtr->GetActor()->GetComponents(components);
-			auto* geometryComponent = Cast<UGeometryCollectionComponent>(components[2]);
-			if (geometryComponent)
-				geometryComponent->SetSimulatePhysics(true);
 		}
 	}
 
@@ -475,7 +467,7 @@ void AYetrixGameModeBase::UpdateVisualDestroy(const float progress) {
 		auto dropIntermediateWorldPos = blockWorldPos + dPosCurr;
 		dropIntermediateWorldPos.Y = dropPosIntermediateY;
 
-		block->GetActor()->SetActorLocation(dropIntermediateWorldPos);
+		block->SetActorLocation(dropIntermediateWorldPos);
 	}
 }
 
@@ -510,7 +502,7 @@ void AYetrixGameModeBase::UpdateVisualDrop(const float progress) {
 
 			const auto dropIntermediateWorldPos = blockWorldPos + dPosCurr;
 
-			block->GetActor()->SetActorLocation(dropIntermediateWorldPos);		
+			block->SetActorLocation(dropIntermediateWorldPos);		
 		}
 	}
 }

@@ -2,6 +2,7 @@
 
 #include "YetrixConfig.h"
 #include "BlockBase.h"
+#include "GeometryCollection/GeometryCollectionComponent.h"
 
 static TSubclassOf<ABlockBase> BlockBPClass;
 
@@ -34,6 +35,21 @@ FVector GameBlock::ToWorldPosition(const Vec2D pos){
 GameBlock::~GameBlock() {
 	if(IsValid(actor))
 		actor->Destroy();
+}
+
+void GameBlock::SetActorLocation(const FVector location)
+{
+	actor->SetActorLocation(location);
+}
+
+void GameBlock::Explode()
+{
+	TArray<UActorComponent*> components;
+	actor->GetComponents(components);
+	constexpr unsigned geometryComponentInd = 2;
+	auto* geometryComponent = Cast<UGeometryCollectionComponent>(components[geometryComponentInd]);
+	if (geometryComponent)
+		geometryComponent->SetSimulatePhysics(true);
 }
 
 void GameBlock::SetPosition(const Vec2D& newPos, const float theAnimDuration) {
@@ -69,6 +85,7 @@ bool GameBlock::TickDestroy(const float dt) {
 void GameBlock::StartDestroy() {
 
 	finalDestroyTimer = destroyActorAfter;
+	Explode();
 }
 
 ABlockBase* GameBlock::CreateActor(UWorld* world) {

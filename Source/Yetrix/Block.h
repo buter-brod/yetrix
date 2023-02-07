@@ -18,7 +18,11 @@ public:
 	const Vec2D& GetPosition() const {return info.position;}
 	bool IsAlive() const {return finalDestroyTimer == 0.f;} //-V550
 	bool IsFinallyDestroyed() const {return finalDestroyRequested;}
-	ABlockBase* GetActor() const {return actor;}
+
+	void SetActorLocation(const FVector location);
+
+	void Explode();
+
 
 	static bool InitSubclasses();
 
