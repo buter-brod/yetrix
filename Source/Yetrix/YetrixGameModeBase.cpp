@@ -137,7 +137,6 @@ void AYetrixGameModeBase::OnStartDropping() {
 	HandleDestruction();
 
 	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
-
 	const auto& figures = statePtr->blockScenePtr->GetFigures();
 	for (const auto& [figID, figPtr] : figures) {
 		
@@ -162,7 +161,12 @@ void AYetrixGameModeBase::OnStartDropping() {
 		}
 	}
 
-	statePtr->quickDropRequested = false;
+	if (statePtr->quickDropRequested)
+	{
+		statePtr->quickDropRequested = false;
+		PlaySoundWithRandomIndex("bdysh", 3);
+	}
+	
 	CheckAddFigures();
 }
 
@@ -275,7 +279,6 @@ void AYetrixGameModeBase::Drop() {
 	statePtr->quickDropRequested = true;
 	statePtr->dropStateTimer = 0.f;
 
-	PlaySoundWithRandomIndex("bdysh", 3);
 }
 
 void AYetrixGameModeBase::Down() {
@@ -407,6 +410,11 @@ bool AYetrixGameModeBase::CheckChangeDropState() {
 	else if (statePtr->currDropState == DropState::DROPPING) {
 		statePtr->currDropState = DropState::STILL;
 		statePtr->dropStateTimer = statePtr->stillStateDuration;
+
+		if (statePtr->quickDropRequested)
+			statePtr->dropStateTimer = 0.f;
+			// should drop quickly, don't wait in STILL state
+
 		OnStopDropping();
 	}
 	else if (statePtr->currDropState == DropState::DESTROYING) {
