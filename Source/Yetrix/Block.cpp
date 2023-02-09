@@ -37,6 +37,18 @@ GameBlock::~GameBlock() {
 		actor->Destroy();
 }
 
+FVector GameBlock::GetActorLocation() const
+{
+	if (!actor)
+	{
+		checkf(false, TEXT("GameBlock::GetActorLocation error, no actor for block %s"), TCHARIFYSTDSTRING(GetID()));
+		return {0.f, 0.f, 0.f};
+	}
+
+	const auto& location = actor->GetActorLocation();
+	return location;
+}
+
 void GameBlock::SetActorLocation(const FVector location)
 {
 	actor->SetActorLocation(location);
@@ -52,22 +64,39 @@ void GameBlock::Explode()
 		geometryComponent->SetSimulatePhysics(true);
 }
 
-void GameBlock::SetPosition(const Vec2D& newPos, const float theAnimDuration) {
+void GameBlock::StartAnimatedMove(const float theAnimDuration, const FVector destination)
+{
+	fromPosition = actor->GetActorLocation();
+	toPosition = destination;
+	animDuration = theAnimDuration;
+	moveTimer = theAnimDuration;
+}
 
+bool GameBlock::SetPosition(const Vec2D& newPos)
+{
 	if (info.position == newPos)
-		return;
+		return false;
 
 	info.position = newPos;
+	return true;
+}
+
+void GameBlock::SetPositionAndUpdateActor(const Vec2D& newPos, const float theAnimDuration) {
+
+	const bool positionUpdated = SetPosition(newPos);
+
+	if (!positionUpdated)
+		return;
 
 	if (theAnimDuration > 0.f)
 	{
-		fromPosition = actor->GetActorLocation();
-		toPosition = ToWorldPosition(info.position);
-		animDuration = theAnimDuration;
-		moveTimer = animDuration;
+		const auto destination = ToWorldPosition(info.position);
+		StartAnimatedMove(theAnimDuration, destination);
 	}
-
-	UpdateActorPosition();
+	else
+	{
+		UpdateActorFromLogicalPosition();
+	}		
 }
 
 bool GameBlock::TickDestroy(const float dt) {
@@ -104,32 +133,32 @@ void GameBlock::Tick(const float dt)
 	if (moveTimer > 0.f)
 	{
 		moveTimer -= dt;
-		UpdateActorPosition();
+		if (moveTimer < 0.f)
+			moveTimer = 0.f;
+
+		UpdateActorMovePosition();
 	}
 }
 
-void GameBlock::UpdateActorPosition() const
+void GameBlock::UpdateActorFromLogicalPosition() const
 {
 	if (!actor)
 		return;
 
-	FVector resultPosition;
+	const auto resultPosition = ToWorldPosition(info.position);
+	actor->SetActorLocation(resultPosition);
+}
 
-	if (moveTimer <= 0.f)
-	{
-		// no animation needed
-		resultPosition = ToWorldPosition(info.position);
-	}
-	else
-	{
-		// needs interpolated animation
+void GameBlock::UpdateActorMovePosition() const
+{
+	if (!actor)
+		return;
 
-		const auto elapsed = animDuration - moveTimer;
-		const auto progress = elapsed / animDuration;
+	const auto elapsed = animDuration - moveTimer;
+	const auto progress = elapsed / animDuration;
 
-		const auto fullDeltsPos = toPosition - fromPosition;
-		resultPosition = fromPosition + fullDeltsPos * progress;
-	}
+	const auto fullDeltsPos = toPosition - fromPosition;
+	const auto resultPosition = fromPosition + fullDeltsPos * progress;
 
 	actor->SetActorLocation(resultPosition);
 }

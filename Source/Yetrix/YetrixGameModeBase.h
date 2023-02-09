@@ -26,19 +26,27 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 		ROTATING
 	};
 
+	enum class RotateSubState
+	{
+		BREAK_1,
+		MOVE_2,
+		ASSEMBLE_3,
+		STATIC
+	};
+
 	bool CheckChangeDropState();
 
-	void Reset();
+	void ResetGame();
 
 	void Save();
 	bool Load();
 
 	void OnStartDestroying();
+	void HandleDestruction();
 	void OnStartDropping();
 	void OnStopDropping();
 	void OnStopDestroying();
 	
-	void FinalizeLogicalDrop();
 	void FinalizeLogicalDestroy();
 	std::set<int> CheckDestruction();
 
@@ -56,6 +64,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 		}
 
 		DropState currDropState = DropState::STILL;
+		RotateSubState currRotateState = RotateSubState::STATIC;
 
 		float dropStateTimer = 0.f;
 		float stillStateDuration = stillStateInitialDuration;
@@ -89,12 +98,14 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 
 	void SimulationTick(float dt);
 	void CheckAddFigures();
-	void UpdateVisualDrop(float progress);
 	bool TryRotate();
+	void HandleRotateAnimation();
+	void HandlePlayerPendingInput();
 	void UpdateVisualDestroy(float progress);
 	
 	void AddScore(const int score);
 	void UpdateScoreUI();
+	void GameOver();
 	void RequestUpdateScoreUI();
 	void UpdateSunlight(const float angle);
 	void UpdateSunMove(const float dt);
@@ -110,4 +121,7 @@ public:
 	void Drop();
 	void Down();
 	void Rotate();
+
+private:
+	std::map<IDType, Vec2D> rotatedPositions;
 };

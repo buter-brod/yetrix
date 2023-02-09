@@ -29,7 +29,14 @@ static const std::array<int, 4> scorePerCombo = {10, 25, 40, 60};
 constexpr float stillStateInitialDuration = 0.5f;
 constexpr float dropStateInitialDuration = 0.1f;
 constexpr float destroyingStateInitialDuration = 0.5f;
-constexpr float rotateStateInitialDuration = 0.15f;
+
+constexpr float rotateStateInitialDuration = 0.4f;
+constexpr float rotate1StageDuration = 0.1f;
+constexpr float rotate2StageDuration = 0.2f;
+constexpr float rotate3StageDuration = 0.1f;
+
+static_assert(rotateStateInitialDuration - (rotate1StageDuration + rotate2StageDuration + rotate3StageDuration) <  0.001f);
+static_assert(rotateStateInitialDuration - (rotate1StageDuration + rotate2StageDuration + rotate3StageDuration) > -0.001f);
 
 constexpr float moveLeftRightAnimDuration = 0.1f;
 

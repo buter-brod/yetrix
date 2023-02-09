@@ -1,6 +1,5 @@
 #include "YetrixGameModeBase.h"
 #include "YetrixPlayerController.h"
-#include "BlockBase.h"
 #include "YetrixPawn.h"
 
 #include "Engine/DamageEvents.h"
@@ -9,7 +8,6 @@
 #include "YetrixConfig.h"
 
 #include "3rdparty/nlohmann/json.hpp"
-
 #include "Utils.h"
 
 AYetrixGameModeBase::AYetrixGameModeBase() {
@@ -29,7 +27,7 @@ bool AYetrixGameModeBase::PlaySoundWithRandomIndex(const std::string& prefix, co
 
 bool AYetrixGameModeBase::PlaySound(const std::string& what){
 
-	auto soundIt = soundsMap.find(what);
+	const auto soundIt = soundsMap.find(what);
 
 	if (soundIt == soundsMap.end())
 		return false;
@@ -40,7 +38,7 @@ bool AYetrixGameModeBase::PlaySound(const std::string& what){
 
 void AYetrixGameModeBase::InitSounds() {
 
-	std::set<std::string> soundNames = {
+	static const std::set<std::string> soundNames = {
 		"bah10",
 		"bah11",
 		"bah12",
@@ -70,7 +68,7 @@ void AYetrixGameModeBase::InitSounds() {
 		std::wstring wname(name.begin(), name.end());
 		std::wstring assetPath = L"/Game/Sound/" + wname + L"." + wname;
 
-		ConstructorHelpers::FObjectFinder<USoundWave> waveAsset(assetPath.c_str());
+		const ConstructorHelpers::FObjectFinder<USoundWave> waveAsset(assetPath.c_str());
 		// assert(waveAsset.Object)
 		soundsMap[name] = waveAsset.Object;
 	}
@@ -86,18 +84,16 @@ void AYetrixGameModeBase::BeginPlay() {
 	auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(pawn);
 	yetrixPawn->SetGameMode(this);
 
-	Reset();
+	ResetGame();
 	Load();
 }
 
 void AYetrixGameModeBase::OnStartDestroying() {
 }
 
-void AYetrixGameModeBase::OnStartDropping() {
-
-	statePtr->blockScenePtr->DeconstructFigures();
+void AYetrixGameModeBase::HandleDestruction()
+{
 	const auto& linesToDestruct = CheckDestruction();
-
 	if (!linesToDestruct.empty()) {
 
 		statePtr->fallingPositions = statePtr->blockScenePtr->GetFallingPositions(linesToDestruct);
@@ -133,7 +129,40 @@ void AYetrixGameModeBase::OnStartDropping() {
 		statePtr->lightAngleEnd += lightZRotationAddPerExplosion;
 		statePtr->sunMoveFinishTimer = sunMoveDuration;
 	}
-	
+}
+
+void AYetrixGameModeBase::OnStartDropping() {
+
+	statePtr->blockScenePtr->DeconstructFigures();
+	HandleDestruction();
+
+	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
+
+	const auto& figures = statePtr->blockScenePtr->GetFigures();
+	for (const auto& [figID, figPtr] : figures) {
+		
+		unsigned maxHeight = 0;
+		const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(figPtr, {0, -1}, maxHeight);
+		if (!canDrop)
+			continue;
+
+		const bool isLowestOne = figID == lowestFigID;
+		const bool canQuickDrop = isLowestOne && statePtr->quickDropRequested; 
+		const int heightToDrop = canQuickDrop ? maxHeight : 1;
+		
+		const auto& blockIDs = figPtr->GetBlockIDs();
+		
+		for (const auto blockID : blockIDs) {
+			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
+			const auto logicalPos = block->GetPosition();
+			auto dropLogicalPos = logicalPos;
+			dropLogicalPos.y -= heightToDrop;
+
+			block->SetPositionAndUpdateActor(dropLogicalPos, statePtr->dropStateDuration);
+		}
+	}
+
+	statePtr->quickDropRequested = false;
 	CheckAddFigures();
 }
 
@@ -206,6 +235,16 @@ void AYetrixGameModeBase::UpdateScoreUI()
 	hud->UpdateScore(statePtr->score, hiScore);
 }
 
+void AYetrixGameModeBase::GameOver()
+{
+	if (statePtr->score > hiScore)
+		hiScore = statePtr->score;
+
+	ResetGame();
+	Save();
+	PlaySound("gameover");
+}
+
 void AYetrixGameModeBase::CheckAddFigures() {
 
 	if (statePtr->blockScenePtr->GetFigures().size() >= minFigures)
@@ -213,14 +252,7 @@ void AYetrixGameModeBase::CheckAddFigures() {
 
 	const bool added = statePtr->blockScenePtr->CreateRandomFigureAt({ newFigureX, newFigureY }, GetWorld());
 	if (!added) {
-		// Game over
-
-		if (statePtr->score > hiScore)
-			hiScore = statePtr->score;
-
-		Reset();
-		Save();
-		PlaySound("gameover");
+		GameOver();
 	}	
 }
 
@@ -277,7 +309,6 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 
 	if (!linesToBoom.empty()) {
 		const auto linesCount = linesToBoom.size();
-		
 
 		if (linesCount == 1) {
 			PlaySoundWithRandomIndex("bah1", 4);
@@ -305,43 +336,11 @@ void AYetrixGameModeBase::FinalizeLogicalDestroy() {
 
 	for (const auto& fallingBlockInfo : statePtr->fallingPositions) {
 
-		auto blockPtr = statePtr->blockScenePtr->GetBlock(fallingBlockInfo.first);
-		blockPtr->SetPosition(fallingBlockInfo.second);
-		blockPtr->UpdateActorPosition();
+		const auto blockPtr = statePtr->blockScenePtr->GetBlock(fallingBlockInfo.first);
+		blockPtr->SetPositionAndUpdateActor(fallingBlockInfo.second);
 	}
 	
 	statePtr->fallingPositions.clear();
-}
-
-void AYetrixGameModeBase::FinalizeLogicalDrop() {
-
-	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
-
-	const auto& figures = statePtr->blockScenePtr->GetFigures();
-	for (const auto& [figID, fig] : figures) {
-		
-		unsigned maxHeight = 0;
-		const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(fig, {0, -1}, maxHeight);
-		if (!canDrop)
-			continue;
-
-		const bool isLowestOne = figID == lowestFigID;
-		const bool canQuickDrop = isLowestOne && statePtr->quickDropRequested; 
-		const int heightToDrop = canQuickDrop ? maxHeight : 1;
-		
-		const auto& blockIDs = fig->GetBlockIDs();
-		
-		for (const auto blockID : blockIDs) {
-			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
-			const auto& logicalPos = block->GetPosition();
-			auto dropLogicalPos = logicalPos;
-			dropLogicalPos.y -= heightToDrop;
-
-			block->SetPosition(dropLogicalPos);
-		}
-	}
-
-	statePtr->quickDropRequested = false;
 }
 
 void AYetrixGameModeBase::OnStopDestroying() {
@@ -352,9 +351,6 @@ void AYetrixGameModeBase::OnStopDestroying() {
 }
 
 void AYetrixGameModeBase::OnStopDropping() {
-
-	UpdateVisualDrop(1.f);
-	FinalizeLogicalDrop();
 }
 
 void AYetrixGameModeBase::Save()
@@ -427,7 +423,7 @@ void AYetrixGameModeBase::RequestUpdateScoreUI()
 	needUpdateScoreUI++;
 }
 
-void AYetrixGameModeBase::Reset() {
+void AYetrixGameModeBase::ResetGame() {
 
 	statePtr = std::make_unique<State>();
 	RequestUpdateScoreUI();
@@ -436,12 +432,10 @@ void AYetrixGameModeBase::Reset() {
 
 void AYetrixGameModeBase::UpdateVisualDestroy(const float progress) {
 
-	for (const auto& fallingPosPair : statePtr->fallingPositions)
+	for (const auto& [blockID, endLogicalPos] : statePtr->fallingPositions)
 	{
-		auto block = statePtr->blockScenePtr->GetBlock(fallingPosPair.first);
-
+		const auto block = statePtr->blockScenePtr->GetBlock(blockID);
 		const auto startLogicalPos = block->GetPosition();
-		const auto& endLogicalPos = fallingPosPair.second;
 
 		const auto blockWorldPos = GameBlock::ToWorldPosition(startLogicalPos);
 		const auto dropWorldPos = GameBlock::ToWorldPosition(endLogicalPos);
@@ -471,65 +465,134 @@ void AYetrixGameModeBase::UpdateVisualDestroy(const float progress) {
 	}
 }
 
-void AYetrixGameModeBase::UpdateVisualDrop(const float progress) {
-
-	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
-
-	const auto& figures = statePtr->blockScenePtr->GetFigures();
-	for (const auto& [figID, figPtr] : figures) {
-		
-		unsigned maxHeight = 0;
-		const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(figPtr, {0, -1}, maxHeight);
-		if (!canDrop)
-			continue;
-
-		const bool isLowestOne = figID == lowestFigID;
-		const bool canQuickDrop = isLowestOne && statePtr->quickDropRequested; 
-		const int heightToDrop = canQuickDrop ? maxHeight : 1;
-		
-		const auto& blockIDs = figPtr->GetBlockIDs();
-		
-		for (const auto blockID : blockIDs) {
-			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
-			const auto logicalPos = block->GetPosition();
-			auto dropLogicalPos = logicalPos;
-			dropLogicalPos.y -= heightToDrop;
-
-			const auto blockWorldPos = GameBlock::ToWorldPosition(logicalPos);
-			const auto dropWorldPos = GameBlock::ToWorldPosition(dropLogicalPos);
-			const auto posDiff = dropWorldPos - blockWorldPos;
-			const auto dPosCurr = posDiff * progress;
-
-			const auto dropIntermediateWorldPos = blockWorldPos + dPosCurr;
-
-			block->SetActorLocation(dropIntermediateWorldPos);		
-		}
-	}
-}
-
 bool AYetrixGameModeBase::TryRotate()
 {
 	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
 
 	if (lowestFigID == Utils::emptyID)
 		return false;
+		// nothing to rotate
 
 	const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
-
-	if (figure->GetType() == Figure::FigType::BOX)
+	rotatedPositions = statePtr->blockScenePtr->GetRotatedPositions(figure);
+	const bool canRotate = !rotatedPositions.empty();
+	if (!canRotate)
 		return false;
-		// no need to rotate box figure
+	
+	PlaySound("k2");
 
-	const bool rotated = statePtr->blockScenePtr->TryRotate(figure);
-	if (rotated) {
+	statePtr->currDropState = DropState::ROTATING;
+	statePtr->dropStateTimer = rotateStateInitialDuration;
+	statePtr->currRotateState = RotateSubState::BREAK_1;
 
-		PlaySound("k2");
+	const auto& blockIDs = figure->GetBlockIDs();
 
-		statePtr->currDropState = DropState::ROTATING;
-		statePtr->dropStateTimer = rotateStateInitialDuration;
+	std::vector<float> depthOffsets;
+
+	constexpr float depthOffsetMultiplier = 2.f;
+
+	const float depthOffsetCompensation = (blockIDs.size() / 2) * blockSize * depthOffsetMultiplier;
+
+	// pivot block should not change its Z
+	depthOffsets.push_back(0.f);
+
+	for (int i = 1; i < blockIDs.size(); ++i)
+		depthOffsets.push_back(i * blockSize * depthOffsetMultiplier - depthOffsetCompensation);
+
+	int depthOffsetInd = 0;
+	for (const auto blockID : blockIDs)
+	{
+		const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockID);
+
+		const auto& worldPos = blockPtr->GetActorLocation();
+		auto newPos = worldPos;
+		newPos.Y = depthOffsets.at(depthOffsetInd);
+
+		blockPtr->StartAnimatedMove(rotate1StageDuration, newPos);
+		blockPtr->SetPosition(rotatedPositions.at(blockID));
+
+		statePtr->currRotateState = RotateSubState::BREAK_1;
+		++depthOffsetInd;
 	}
 
-	return rotated;
+	return true;
+}
+
+void AYetrixGameModeBase::HandleRotateAnimation()
+{
+	const float elapsed = rotateStateInitialDuration - statePtr->dropStateTimer;
+	if (elapsed < rotate1StageDuration)
+	{
+		// visual 'break' in progress, no actions needed
+		return;
+	}
+
+	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
+	const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
+	const auto& blockIDs = figure->GetBlockIDs();
+	
+	if (statePtr->currRotateState == RotateSubState::BREAK_1 && elapsed < rotate1StageDuration + rotate2StageDuration)
+	{
+		// moving to rotated positions, but still in modified 'depth'-planes
+		for (const auto blockID : blockIDs)
+		{
+			const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockID);
+			const auto& worldPos = blockPtr->GetActorLocation();
+			auto newPos = GameBlock::ToWorldPosition(rotatedPositions.at(blockID));
+
+			// change only XZ plane, depth (Y) should still be alterated
+			newPos.Y = worldPos.Y;	
+
+			blockPtr->StartAnimatedMove(rotate2StageDuration, newPos);
+		}
+
+		statePtr->currRotateState = RotateSubState::MOVE_2;
+	}
+	else if (statePtr->currRotateState == RotateSubState::MOVE_2 && elapsed > rotate1StageDuration + rotate2StageDuration)
+	{
+		for (const auto blockID : blockIDs)
+		{
+			const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockID);
+			const auto& worldPos = blockPtr->GetActorLocation();
+			auto newPos = worldPos;
+			newPos.Y = 0.f;
+			blockPtr->StartAnimatedMove(rotate3StageDuration, newPos);
+		}
+
+		statePtr->currRotateState = RotateSubState::ASSEMBLE_3;
+	}
+}
+
+void AYetrixGameModeBase::HandlePlayerPendingInput()
+{
+	while (statePtr->leftPending)
+	{
+		statePtr->leftPending--;
+
+		const bool moveOk = statePtr->blockScenePtr->TryMoveBlock({-1, 0});
+		if (moveOk)
+			PlaySound("k0");
+		else
+			break;
+	}
+	while (statePtr->rightPending) {
+
+		statePtr->rightPending--;
+		const bool moveOk = statePtr->blockScenePtr->TryMoveBlock({1, 0});
+		if (moveOk)
+			PlaySound("k1");
+		else
+			break;
+	}
+
+	while (statePtr->rotatePending)
+	{
+		statePtr->rotatePending--;
+
+		const bool rotated = TryRotate();
+		if (!rotated) 
+			break;
+	}
 }
 
 void AYetrixGameModeBase::SimulationTick(float dt) {
@@ -539,44 +602,25 @@ void AYetrixGameModeBase::SimulationTick(float dt) {
 	statePtr->dropStateTimer -= dt;
 	CheckChangeDropState();
 
+	if (statePtr->currDropState == DropState::ROTATING) {
+
+		// handling rotating substate
+		HandleRotateAnimation();
+	}
+
 	if (statePtr->currDropState == DropState::DESTROYING) {
 
 		const float dropProgress = 1.f - (statePtr->dropStateTimer / statePtr->destroyStateDuration);
 		UpdateVisualDestroy(dropProgress);
 	}
 	else if (statePtr->currDropState == DropState::DROPPING) {
-		const float dropProgress = 1.f - (statePtr->dropStateTimer / statePtr->dropStateDuration);
-		UpdateVisualDrop(dropProgress);
+
+		// no action required
+
 	} else {
-	
-		while (statePtr->leftPending)
-		{
-			statePtr->leftPending--;
 
-			const bool moveOk = statePtr->blockScenePtr->TryMoveBlock({-1, 0});
-			if (moveOk)
-				PlaySound("k0");
-			else
-				break;
-		}
-		while (statePtr->rightPending) {
-
-			statePtr->rightPending--;
-			const bool moveOk = statePtr->blockScenePtr->TryMoveBlock({1, 0});
-			if (moveOk)
-				PlaySound("k1");
-			else
-				break;
-		}
-
-		while (statePtr->rotatePending)
-		{
-			statePtr->rotatePending--;
-
-			const bool rotated = TryRotate();
-			if (!rotated) 
-				break;
-		}
+		//STILL or ROTATING	
+		HandlePlayerPendingInput();
 	}
 
 	statePtr->blockScenePtr->Tick(dt);

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BlockBase.h"
 #include <set>
 #include <map>
 #include "Utils.h"
@@ -36,11 +35,12 @@ public:
 
 	void Tick(float dt);
 	void CleanupBlocks(float dt);
-	
+
 	bool CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance) const;
 	bool TryMoveBlock(const Vec2D& direction);
 	bool TryRotate(Figure::Ptr figPtr);
 
+	std::map<IDType, Vec2D> GetRotatedPositions(Figure::Ptr figPtr) const;
 	std::map<IDType, Vec2D> GetFallingPositions(const std::set<int>& destroyedLines) const;
 
 protected:	

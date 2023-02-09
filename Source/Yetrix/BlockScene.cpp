@@ -99,7 +99,9 @@ Vec2D GetRotated(Figure::AngleCW angle, const Vec2D coord) {
 	return rotated;
 }
 
-bool BlockScene::TryRotate(const Figure::Ptr figPtr) {
+std::map<IDType, Vec2D> BlockScene::GetRotatedPositions(const Figure::Ptr figPtr) const
+{
+	std::map<IDType, Vec2D> positions;
 
 	static const std::vector<Vec2D> validOffsets = {{0, 0}, {1, 0}, {-1, 0}, {0, -1}, {0, 1}};
 	const auto& blockIDs = figPtr->GetBlockIDs();
@@ -113,7 +115,8 @@ bool BlockScene::TryRotate(const Figure::Ptr figPtr) {
 	Vec2D selectedOffset = validOffsets.at(0);
 	Figure::AngleCW selectedRotation = Figure::AngleCW::R0;
 
-	const std::vector<Figure::AngleCW> rotations = {Figure::AngleCW::R90, Figure::AngleCW::R180, Figure::AngleCW::R270};
+	static const std::vector rotations = {Figure::AngleCW::R90, Figure::AngleCW::R180, Figure::AngleCW::R270};
+
 	for (const auto rotation : rotations) {
 		for (const auto& offset : validOffsets) {
 
@@ -139,19 +142,38 @@ bool BlockScene::TryRotate(const Figure::Ptr figPtr) {
 			}
 
 			if (!blocked) {
-				// let's rotate
+				// found valid angle and offset, let's calculate new positoins, finally
 
 				for (const auto& block : figBlocks) {
-					const auto rotated = getBlockRotatedPos(block->GetPosition());
-					block->SetPosition(rotated, rotateStateInitialDuration);
+					const auto rotatedPos = getBlockRotatedPos(block->GetPosition());
+					positions[block->GetID()] = rotatedPos;
 				}
 
-				return true;
+				return positions;
 			}
 		}
 	}
 
-	return false;
+	// failed to rotate
+	return positions;	
+}
+
+bool BlockScene::TryRotate(const Figure::Ptr figPtr) {
+
+	// basic rotation. Might not be used if GameMode wants some extra effects before actual rotation occurs.
+
+	const auto& rotPositions = GetRotatedPositions(figPtr);
+
+	if (rotPositions.empty())
+		return false;
+
+	for (const auto& [blockId, blockPos] : rotPositions)
+	{
+		const auto blockPtr = blocks.at(blockId);
+		blockPtr->SetPositionAndUpdateActor(blockPos, rotateStateInitialDuration);
+	}
+
+	return true;
 }
 
 bool BlockScene::DeconstructFigures() {
@@ -208,8 +230,7 @@ bool BlockScene::TryMoveBlock(const Vec2D& direction) {
 		const auto block = GetBlock(blockID);
 		const auto& prevPos = block->GetPosition();
 		const auto newPos = prevPos + direction;
-		block->SetPosition(newPos, moveLeftRightAnimDuration);
-		block->UpdateActorPosition();
+		block->SetPositionAndUpdateActor(newPos, moveLeftRightAnimDuration);
 	}
 
 	return true;

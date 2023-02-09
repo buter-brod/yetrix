@@ -19,23 +19,27 @@ public:
 	bool IsAlive() const {return finalDestroyTimer == 0.f;} //-V550
 	bool IsFinallyDestroyed() const {return finalDestroyRequested;}
 
+	FVector GetActorLocation() const;
 	void SetActorLocation(const FVector location);
 
 	void Explode();
-
+	void StartAnimatedMove(float theAnimDuration, FVector destination);
 
 	static bool InitSubclasses();
 
 	bool TickDestroy(float dt);
 	void StartDestroy();
 
-	void SetPosition(const Vec2D& newPos, const float animDuration = 0.f);
+	bool SetPosition(const Vec2D& newPos);
+	void SetPositionAndUpdateActor(const Vec2D& newPos, const float animDuration = 0.f);
 
 	void SetFigure(const IDType figID) {info.figureID = figID;}
 	static FVector ToWorldPosition(const Vec2D pos);
 
 	ABlockBase* CreateActor(UWorld* world);
-	void UpdateActorPosition() const;
+	void UpdateActorMovePosition() const;
+	void UpdateActorFromLogicalPosition() const;
+
 
 	void Tick(const float dt);
 

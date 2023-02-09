@@ -19,10 +19,11 @@ namespace Utils {
 
 	std::string NewID()
 	{
-		static const std::string symbols = "0123456789abcdef";
-		static std::uniform_int_distribution<int> distribution(0, symbols.size() - 1);
+		static const std::string base64symbols = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/";
+		static std::uniform_int_distribution<int> distribution(0, base64symbols.size() - 1);
 
-		constexpr size_t idSize = 6;
+		// 1 billion unique ids is good enough
+		constexpr size_t idSize = 5;
 
 		std::string result;
 		result.reserve(idSize);
@@ -30,7 +31,7 @@ namespace Utils {
 		while (result.size() < idSize)
 		{
 			const auto index = distribution(localRnd());
-			result += symbols.at(index);
+			result += base64symbols.at(index);
 		}
 
 		return result;
