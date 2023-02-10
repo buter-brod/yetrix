@@ -13,7 +13,9 @@ constexpr float destroyYShift = 300.f;
 constexpr int checkHeight = 20;
 
 constexpr int newFigureX = 5;
-constexpr int newFigureY = 25;
+constexpr int newFigureY = 24;
+
+constexpr float assembleDuration = 0.2f;
 
 constexpr int rightBorderX = 11;
 

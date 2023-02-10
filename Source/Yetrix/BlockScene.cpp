@@ -12,7 +12,7 @@ BlockScene::~BlockScene()
 {	
 }
 
-bool BlockScene::CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world) {
+Figure::Ptr BlockScene::CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world) {
 
 	Figure::Ptr newFigurePtr = std::make_shared<Figure>(type);
 
@@ -21,24 +21,24 @@ bool BlockScene::CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* 
 	for (const auto& blockPtr : newBlocks) {
 		const bool canAddBlock = CanAddBlock(blockPtr);
 		if (!canAddBlock)
-			return false;
+			return nullptr;
 	}
 
 	for (const auto& blockPtr : newBlocks) {
 		const bool addedOk = AddBlock(blockPtr);
 		if (!addedOk) 
-			return false;
+			return nullptr;
 	}
 
 	figures.emplace(newFigurePtr->GetID(), newFigurePtr);
-	return true;
+	return newFigurePtr;
 }
 
-bool BlockScene::CreateRandomFigureAt(const Vec2D& pos, UWorld* world) {
+Figure::Ptr BlockScene::CreateRandomFigureAt(const Vec2D& pos, UWorld* world) {
 
 	std::uniform_int_distribution<int> uni(0, static_cast<int>(Figure::FigType::UNDEFINED) - 1);
 	const Figure::FigType figType = static_cast<Figure::FigType> (uni(Utils::localRnd()));
-	const bool figAdded = CreateFigureAt(figType, pos, world);
+	const auto figAdded = CreateFigureAt(figType, pos, world);
 	return figAdded;
 }
 

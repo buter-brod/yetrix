@@ -43,6 +43,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 
 	void OnStartDestroying();
 	void HandleDestruction();
+	std::set<IDType> FindLowerBlocks(const Figure::Ptr figurePtr) const;
 	void OnStartDropping();
 	void OnStopDropping();
 	void OnStopDestroying();

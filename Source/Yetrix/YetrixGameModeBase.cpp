@@ -115,20 +115,50 @@ void AYetrixGameModeBase::HandleDestruction()
 			FTimerHandle TimerHandle;
 			constexpr float sayYeahAfterSeconds = 1.f;
 			const auto* world = GetWorld();
-
-			if (world)
+			world->GetTimerManager().SetTimer(TimerHandle, [this]()
 			{
-				world->GetTimerManager().SetTimer(TimerHandle, [&]()
-				{
-					PlaySound("yeah");
-				}, sayYeahAfterSeconds, false);
-			}			
+				PlaySound("yeah");
+			}, sayYeahAfterSeconds, false);
 		}
 
 		statePtr->lightAngleStart = statePtr->lightAngleCurrent;
 		statePtr->lightAngleEnd += lightZRotationAddPerExplosion;
 		statePtr->sunMoveFinishTimer = sunMoveDuration;
 	}
+}
+
+std::set<IDType> AYetrixGameModeBase::FindLowerBlocks(const Figure::Ptr figure) const
+{
+	const std::vector<IDType>& blockIDs = figure->GetBlockIDs();
+
+	std::set<IDType> lowerFigureBlocks;
+
+	for (const auto blockID : blockIDs) {
+		const auto block = statePtr->blockScenePtr->GetBlock(blockID);
+		const auto logicalPos = block->GetPosition();
+
+		if (lowerFigureBlocks.empty())
+			lowerFigureBlocks.insert(blockID);
+		else
+		{
+			const auto possibleLowerBlockID = *lowerFigureBlocks.begin();
+			const auto possibleLowerBlockY = statePtr->blockScenePtr->GetBlock(possibleLowerBlockID)->GetPosition().y;
+
+			if (possibleLowerBlockY == logicalPos.y)
+			{
+				lowerFigureBlocks.insert(blockID);
+			}
+			else if (possibleLowerBlockY > logicalPos.y)
+			{
+				// this block is lower than blocks stored in lowerFigureBlocks collection, 
+
+				lowerFigureBlocks.clear();
+				lowerFigureBlocks.insert(blockID);
+			}
+		}
+	}
+
+	return lowerFigureBlocks;
 }
 
 void AYetrixGameModeBase::OnStartDropping() {
@@ -149,15 +179,32 @@ void AYetrixGameModeBase::OnStartDropping() {
 		const bool canQuickDrop = isLowestOne && statePtr->quickDropRequested; 
 		const int heightToDrop = canQuickDrop ? maxHeight : 1;
 		
+		const auto& lowerFigureBlocks = FindLowerBlocks(figPtr);
+
 		const auto& blockIDs = figPtr->GetBlockIDs();
-		
 		for (const auto blockID : blockIDs) {
 			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
 			const auto logicalPos = block->GetPosition();
 			auto dropLogicalPos = logicalPos;
 			dropLogicalPos.y -= heightToDrop;
 
-			block->SetPositionAndUpdateActor(dropLogicalPos, statePtr->dropStateDuration);
+			auto fallDuration = statePtr->dropStateDuration;
+			const bool isLower = lowerFigureBlocks.count(blockID) > 0;
+			constexpr float lowerFallDurationMultiplier = 0.25f;
+
+			// apply smoke effect if needed
+			if (statePtr->quickDropRequested && isLower)
+			{
+				fallDuration *= lowerFallDurationMultiplier;
+
+				FTimerHandle TimerHandle;
+				GetWorld()->GetTimerManager().SetTimer(TimerHandle, [blockID, this]()
+				{
+					const auto blockToPuffPtr = statePtr->blockScenePtr->GetBlock(blockID);
+					blockToPuffPtr->SmokePuff();
+				}, fallDuration, false);				
+			}
+			block->SetPositionAndUpdateActor(dropLogicalPos, fallDuration);
 		}
 	}
 
@@ -254,10 +301,35 @@ void AYetrixGameModeBase::CheckAddFigures() {
 	if (statePtr->blockScenePtr->GetFigures().size() >= minFigures)
 		return;
 
-	const bool added = statePtr->blockScenePtr->CreateRandomFigureAt({ newFigureX, newFigureY }, GetWorld());
-	if (!added) {
+	const auto figureAdded = statePtr->blockScenePtr->CreateRandomFigureAt({ newFigureX, newFigureY }, GetWorld());
+	if (!figureAdded) {
 		GameOver();
-	}	
+	}
+	else	
+	{
+		// apply assemble animation
+		const auto& blockIDs = figureAdded->GetBlockIDs();
+		static const std::vector<Vec2D> assembleOrigins = {
+			{-25, 25},
+			{-15, 25},
+			{25, 25},
+			{35, 25}
+		};
+		
+		size_t asseblePosInd = 0;
+		for (const auto blockID : blockIDs)
+		{
+			const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockID);
+
+			const auto blockPosNeeded = blockPtr->GetPosition();
+			const Vec2D assembleFromPos = assembleOrigins[asseblePosInd];
+
+			blockPtr->SetPositionAndUpdateActor(assembleFromPos);			
+			blockPtr->SetPositionAndUpdateActor(blockPosNeeded, assembleDuration);
+
+			asseblePosInd++;
+		}
+	}
 }
 
 void AYetrixGameModeBase::Left() {

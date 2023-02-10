@@ -22,6 +22,7 @@ public:
 	FVector GetActorLocation() const;
 	void SetActorLocation(const FVector location);
 
+	void SmokePuff();
 	void Explode();
 	void StartAnimatedMove(float theAnimDuration, FVector destination);
 

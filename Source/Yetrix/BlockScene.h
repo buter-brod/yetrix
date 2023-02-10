@@ -15,8 +15,8 @@ public:
 	BlockScene();
 	~BlockScene();
 
-	bool CreateRandomFigureAt(const Vec2D& pos, UWorld* world);
-	bool CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world);
+	Figure::Ptr CreateRandomFigureAt(const Vec2D& pos, UWorld* world);
+	Figure::Ptr CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world);
 
 	GameBlock::Ptr GetBlock(const Vec2D& pos, bool aliveOnly) const;
 	GameBlock::Ptr GetBlock(IDType blockID) const;

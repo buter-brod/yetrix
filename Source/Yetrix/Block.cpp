@@ -1,8 +1,13 @@
 #include "Block.h"
 
+#include <execution>
+
 #include "YetrixConfig.h"
 #include "BlockBase.h"
 #include "GeometryCollection/GeometryCollectionComponent.h"
+#include "Particles/ParticleSystemComponent.h"
+
+#include "NiagaraComponent.h"
 
 static TSubclassOf<ABlockBase> BlockBPClass;
 
@@ -52,6 +57,16 @@ FVector GameBlock::GetActorLocation() const
 void GameBlock::SetActorLocation(const FVector location)
 {
 	actor->SetActorLocation(location);
+}
+
+void GameBlock::SmokePuff()
+{
+	TArray<UActorComponent*> components;
+	actor->GetComponents(components);
+	constexpr unsigned particleComponentInd = 3;
+	auto* particleComponent = Cast<UNiagaraComponent>(components[particleComponentInd]);
+	if (particleComponent)
+		particleComponent->ActivateSystem();
 }
 
 void GameBlock::Explode()
