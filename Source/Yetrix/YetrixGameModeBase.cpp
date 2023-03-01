@@ -9,6 +9,7 @@
 
 #include "3rdparty/nlohmann/json.hpp"
 #include "Utils.h"
+#include "YetrixSaveGame.h"
 
 AYetrixGameModeBase::AYetrixGameModeBase() {
 
@@ -388,7 +389,7 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 		}
 	}
 
-	for (int y : linesToBoom) {
+	for (const int y : linesToBoom) {
 
 		for (int x = 1; x < rightBorderX; ++x)
 		{

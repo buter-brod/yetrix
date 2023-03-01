@@ -5,7 +5,6 @@
 
 #include "BlockScene.h"
 #include "YetrixConfig.h"
-#include "YetrixSaveGame.h"
 
 #include "YetrixGameModeBase.generated.h"
 

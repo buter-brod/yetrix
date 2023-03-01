@@ -1,11 +1,8 @@
 #include "Utils.h"
 
-#include <sstream>
 #include <random>
-#include <chrono>
-#include <iomanip>
 
-static const float RANDOM_STRENGTH = 5000.f;
+static constexpr float RANDOM_STRENGTH = 5000.f;
 
 namespace Utils {
 
@@ -48,7 +45,7 @@ namespace Utils {
 			return errorStr; // sad but error.
 		}
 
-		return vec[Utils::rnd0xi((unsigned int)vec.size())];
+		return vec[Utils::rnd0xi(static_cast<unsigned int>(vec.size()))];
 	}
 
 	size_t rnd() {
@@ -58,7 +55,7 @@ namespace Utils {
 		return (size_t)dist(rng);
 	}
 
-	float rnd01() { return float(rnd()) / RANDOM_STRENGTH; }
+	float rnd01() { return static_cast<float>(rnd()) / RANDOM_STRENGTH; }
 	float rnd0xf(const float x) { return rnd01() * x; }
 	unsigned int rnd0xi(const unsigned int x) { return rnd() % x; }
 

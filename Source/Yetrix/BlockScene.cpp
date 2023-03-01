@@ -112,8 +112,6 @@ std::map<IDType, Vec2D> BlockScene::GetRotatedPositions(const Figure::Ptr figPtr
 		figBlocks.push_back(blocks.at(blockID));
 	}
 
-	Vec2D selectedOffset = validOffsets.at(0);
-	Figure::AngleCW selectedRotation = Figure::AngleCW::R0;
 
 	static const std::vector rotations = {Figure::AngleCW::R90, Figure::AngleCW::R180, Figure::AngleCW::R270};
 
@@ -287,7 +285,7 @@ bool BlockScene::CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, uns
 	const Vec2D blockPos = blockPtr->GetPosition();
 	Vec2D farest = {blockPos.x, blockPos.y};
 
-	bool currOk = true;
+	bool currOk;
 	do {
 		farest = farest + direction;
 		currOk = CheckFigureBlockCanBePlaced(farest);
@@ -390,7 +388,6 @@ json BlockScene::Save() const
 	}
 	
 	doc["figures"] = json::object();
-	json& figuresObj = doc["figures"];
 	for (const auto [id, figurePtr] : figures)
 	{
 		json& figureObject = doc["figures"][id];

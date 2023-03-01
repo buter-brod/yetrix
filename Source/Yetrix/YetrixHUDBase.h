@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
-#include "Components/WidgetComponent.h"
 #include "ScoreWidget.h"
 #include "YetrixHUDBase.generated.h"
 
