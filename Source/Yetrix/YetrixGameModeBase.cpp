@@ -127,38 +127,19 @@ void AYetrixGameModeBase::HandleDestruction()
 	}
 }
 
-std::set<IDType> AYetrixGameModeBase::FindLowerBlocks(const Figure::Ptr figure) const
+std::map<int, std::vector<IDType> > AYetrixGameModeBase::GetBlocksSortedFromLower(const Figure::Ptr figure) const
 {
+	std::map<int, std::vector<IDType> > sortedResult;
 	const std::vector<IDType>& blockIDs = figure->GetBlockIDs();
-
-	std::set<IDType> lowerFigureBlocks;
 
 	for (const auto blockID : blockIDs) {
 		const auto block = statePtr->blockScenePtr->GetBlock(blockID);
 		const auto logicalPos = block->GetPosition();
 
-		if (lowerFigureBlocks.empty())
-			lowerFigureBlocks.insert(blockID);
-		else
-		{
-			const auto possibleLowerBlockID = *lowerFigureBlocks.begin();
-			const auto possibleLowerBlockY = statePtr->blockScenePtr->GetBlock(possibleLowerBlockID)->GetPosition().y;
-
-			if (possibleLowerBlockY == logicalPos.y)
-			{
-				lowerFigureBlocks.insert(blockID);
-			}
-			else if (possibleLowerBlockY > logicalPos.y)
-			{
-				// this block is lower than blocks stored in lowerFigureBlocks collection, 
-
-				lowerFigureBlocks.clear();
-				lowerFigureBlocks.insert(blockID);
-			}
-		}
+		sortedResult[logicalPos.y].push_back(blockID);
 	}
 
-	return lowerFigureBlocks;
+	return sortedResult;
 }
 
 void AYetrixGameModeBase::OnStartDropping() {
@@ -179,32 +160,45 @@ void AYetrixGameModeBase::OnStartDropping() {
 		const bool canQuickDrop = isLowestOne && statePtr->quickDropRequested; 
 		const int heightToDrop = canQuickDrop ? maxHeight : 1;
 		
-		const auto& lowerFigureBlocks = FindLowerBlocks(figPtr);
-
+		const auto& blocksSortedByY = GetBlocksSortedFromLower(figPtr);
 		const auto& blockIDs = figPtr->GetBlockIDs();
-		for (const auto blockID : blockIDs) {
-			const auto block = statePtr->blockScenePtr->GetBlock(blockID);
-			const auto logicalPos = block->GetPosition();
-			auto dropLogicalPos = logicalPos;
-			dropLogicalPos.y -= heightToDrop;
 
-			auto fallDuration = statePtr->dropStateDuration;
-			const bool isLower = lowerFigureBlocks.count(blockID) > 0;
-			constexpr float lowerFallDurationMultiplier = 0.25f;
+		int yInd = 0;
+		size_t blockInd = 0;
 
-			// apply smoke effect if needed
-			if (statePtr->quickDropRequested && isLower)
-			{
-				fallDuration *= lowerFallDurationMultiplier;
+		for (const auto& [y, blocks] : blocksSortedByY)
+		{
+			for (const auto blockID : blocks) {
+				const auto block = statePtr->blockScenePtr->GetBlock(blockID);
+				const auto logicalPos = block->GetPosition();
+				auto dropLogicalPos = logicalPos;
+				dropLogicalPos.y -= heightToDrop;
 
-				FTimerHandle TimerHandle;
-				GetWorld()->GetTimerManager().SetTimer(TimerHandle, [blockID, this]()
+				auto fallDuration = statePtr->dropStateDuration;
+				constexpr float lowerFallDurationMultiplier = 0.25f;
+				const bool isLower = (yInd == 0);
+				
+				if (statePtr->quickDropRequested)
 				{
-					const auto blockToPuffPtr = statePtr->blockScenePtr->GetBlock(blockID);
-					blockToPuffPtr->SmokePuff();
-				}, fallDuration, false);				
+					// lowest left-est block will have max speed, toppest rightest block - lowest speed (fall last)
+					fallDuration = lowerFallDurationMultiplier + (statePtr->dropStateDuration - statePtr->dropStateDuration * lowerFallDurationMultiplier) * (static_cast<float>(blockInd) / blockIDs.size());
+
+					// apply smoke effect if needed
+					if (isLower)
+					{
+						FTimerHandle TimerHandle;
+						GetWorld()->GetTimerManager().SetTimer(TimerHandle, [blockID, this]()
+							{
+								const auto blockToPuffPtr = statePtr->blockScenePtr->GetBlock(blockID);
+						blockToPuffPtr->SmokePuff();
+							}, fallDuration, false);
+					}
+				}
+				block->SetPositionAndUpdateActor(dropLogicalPos, fallDuration);
+				blockInd++;
 			}
-			block->SetPositionAndUpdateActor(dropLogicalPos, fallDuration);
+
+			yInd++;
 		}
 	}
 
