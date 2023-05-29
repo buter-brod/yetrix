@@ -14,6 +14,14 @@ void UScoreWidget::UpdateScoreCount(int Value, int HiValue) const
 	txtScore->SetText(FText::FromString(scoreString));
 }
 
+void UScoreWidget::UpdateConditionScore(int Value, int WorstValue) const
+{
+	FString scoreString = FString::FromInt(Value);
+	scoreString = scoreString + "/" + FString::FromInt(WorstValue);
+
+	TxtCondition->SetText(FText::FromString(scoreString));
+}
+
 void UScoreWidget::NativeConstruct() {
 	Super::NativeConstruct();
 

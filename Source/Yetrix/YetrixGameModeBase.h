@@ -40,8 +40,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	void Save();
 	bool Load();
 
-	void OnStartDestroying();
-	void HandleDestruction();
+	bool HandleDestruction();
 	std::map<int, std::vector<IDType>> GetBlocksSortedFromLower(const Figure::Ptr figurePtr) const;
 	void OnStartDropping();
 	void OnStopDropping();
@@ -49,6 +48,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	
 	void FinalizeLogicalDestroy();
 	std::set<int> CheckDestruction();
+	static std::set<int> CheckDestruction(BlockScene& theBlockScene);
 
 	void InitSounds();
 
@@ -78,6 +78,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 		int rotatePending = 0;
 
 		int score = 0;
+		int conditionScore = 0;
 
 		float lightAngleCurrent = 0.f;
 
@@ -92,12 +93,13 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	float dtAccum = 0.f;
 
 	int needUpdateScoreUI = 0;
+	int needUpdateConditionScoreUI = 0;
 
 	virtual void BeginPlay() override;
 	virtual void Tick(float dt) override;
 
 	void SimulationTick(float dt);
-	void CheckAddFigures();
+	bool CheckAddFigures();
 	bool TryRotate();
 	void HandleRotateAnimation();
 	void HandlePlayerPendingInput();
@@ -105,15 +107,20 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	
 	void AddScore(const int score);
 	void UpdateScoreUI();
+	void UpdateConditionScoreUI();
 	void GameOver();
 	void RequestUpdateScoreUI();
+	void RequestUpdateConditionScoreUI();
 	void UpdateSunlight(const float angle);
 	void UpdateSunMove(const float dt);
 
 	void UpdateSpeed();
+
+	bool CheckConditionChange();
 	
 	std::unique_ptr<State> statePtr;
 	int hiScore = 0;
+	int worstConditionScore = 0;
 
 public:
 	void Left();
@@ -121,6 +128,8 @@ public:
 	void Drop();
 	void Down();
 	void Rotate();
+
+	const BlockScene* GetBlockScene() const {return statePtr->blockScenePtr.get();}
 
 private:
 	std::map<IDType, Vec2D> rotatedPositions;

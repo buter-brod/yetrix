@@ -26,6 +26,7 @@ class YETRIX_API AYetrixHUDBase : public AHUD
 
 public:
 	void UpdateScore(int Value, int HiValue);
+	void UpdateConditionScore(int Value, int WorstValue);
 
 private:
 	UScoreWidget* scoreWidget = nullptr;

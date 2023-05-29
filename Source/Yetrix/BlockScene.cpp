@@ -156,22 +156,81 @@ std::map<IDType, Vec2D> BlockScene::GetRotatedPositions(const Figure::Ptr figPtr
 	return positions;	
 }
 
-bool BlockScene::TryRotate(const Figure::Ptr figPtr) {
+BlockScene::ConditionInfo BlockScene::CalculateSceneConditionInfo() const
+{
+	ConditionInfo info;
 
-	// basic rotation. Might not be used if GameMode wants some extra effects before actual rotation occurs.
-
-	const auto& rotPositions = GetRotatedPositions(figPtr);
-
-	if (rotPositions.empty())
-		return false;
-
-	for (const auto& [blockId, blockPos] : rotPositions)
+	std::map<int, int> heightMap;
+		
+	for (const auto& [id, blockInfo]: blocks)
 	{
-		const auto blockPtr = blocks.at(blockId);
-		blockPtr->SetPositionAndUpdateActor(blockPos, rotateStateInitialDuration);
+		if (!blockInfo->IsAlive())
+			continue;
+
+		if (blockInfo->GetBlockInfo().figureID != Utils::emptyID)
+			continue;
+			// block is not frozen yet
+
+		const auto& pos = blockInfo->GetPosition();
+		const auto x = pos.x;
+		const auto y = pos.y;
+
+		if (info.maxHeight < y)
+			info.maxHeight = y;
+
+		if (heightMap.count(x) == 0 || heightMap.at(x) < y)
+		{
+			heightMap[x] = y;			
+		}
+
 	}
 
-	return true;
+	for (const auto [x, y] : heightMap)
+	{
+		if (info.minHeight < 0 || info.minHeight > y)
+				info.minHeight = y;
+	}
+	
+	for (int x = 1; x < rightBorderX; ++x)
+	{
+		if (heightMap.count(x) == 0)
+			continue;
+			// no blocks on this column
+
+		int y = heightMap.at(x) - 1;
+		for (; y > 0; --y)
+		{
+			auto block = GetBlock({x, y}, true);
+			if (!block)
+			{
+				info.holes.emplace(x, y);
+			}
+		}
+	}
+
+	if (info.minHeight < 0)
+		info.minHeight = 0;
+
+	return info;
+}
+
+int BlockScene::CalculateSceneConditionScore() const
+{
+	const auto conditionInfo = CalculateSceneConditionInfo();
+
+	constexpr float maxHeightCoeff = 1.f;
+	constexpr float minHeightCoeff = 0.5f;
+	constexpr float holesCoeff = 5.f;
+	constexpr float blocksCoeff = 0.2f;
+
+
+	const int resultScore = 
+		maxHeightCoeff * conditionInfo.maxHeight + 
+		minHeightCoeff * conditionInfo.minHeight + 
+		holesCoeff * conditionInfo.holes.size() + 
+		blocksCoeff * blocks.size();
+
+	return resultScore;
 }
 
 bool BlockScene::DeconstructFigures() {

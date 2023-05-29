@@ -16,7 +16,6 @@ public:
 	~BlockScene();
 
 	Figure::Ptr CreateRandomFigureAt(const Vec2D& pos, UWorld* world);
-	Figure::Ptr CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world);
 
 	GameBlock::Ptr GetBlock(const Vec2D& pos, bool aliveOnly) const;
 	GameBlock::Ptr GetBlock(IDType blockID) const;
@@ -27,6 +26,17 @@ public:
 	FigureMap& GetFigures() {return figures;}
 	BlockMap& GetBlocks() {return blocks;}
 
+	struct ConditionInfo
+	{
+		std::set<Vec2D> holes;
+		int maxHeight = 0;
+		int minHeight = -1;
+	};
+
+	ConditionInfo CalculateSceneConditionInfo() const;
+
+	int CalculateSceneConditionScore() const;
+
 	json Save() const;
 	bool Load(const json& data, UWorld* world);
 
@@ -34,11 +44,9 @@ public:
 	IDType GetLowestFigureID() const;
 
 	void Tick(float dt);
-	void CleanupBlocks(float dt);
-
+	
 	bool CheckFigureCanMove(Figure::Ptr figPtr, Vec2D direction, unsigned& maxDistance) const;
 	bool TryMoveBlock(const Vec2D& direction);
-	bool TryRotate(Figure::Ptr figPtr);
 
 	std::map<IDType, Vec2D> GetRotatedPositions(Figure::Ptr figPtr) const;
 	std::map<IDType, Vec2D> GetFallingPositions(const std::set<int>& destroyedLines) const;
@@ -48,6 +56,8 @@ protected:
 	bool AddBlock(GameBlock::Ptr blockPtr);
 	bool CheckFigureBlockCanBePlaced(const Vec2D& position) const;
 	bool CheckBlockCanMove(GameBlock::Ptr blockPtr, Vec2D direction, unsigned& maxDistance) const;
+	void CleanupBlocks(float dt);
+	Figure::Ptr CreateFigureAt(Figure::FigType type, const Vec2D& pos, UWorld* world);
 
 private:
 	FigureMap figures;

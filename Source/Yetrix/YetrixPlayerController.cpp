@@ -25,31 +25,31 @@ void AYetrixPlayerController::Quit() {
 }
 
 void AYetrixPlayerController::Rotate() {
-    
-    auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(GetPawn());
+
+    AYetrixPawn* yetrixPawn = Cast<AYetrixPawn>(GetPawn());
     yetrixPawn->Rotate();
 }
 
 void AYetrixPlayerController::MoveLeft() {
     
-    auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(GetPawn());
+    AYetrixPawn* yetrixPawn = Cast<AYetrixPawn>(GetPawn());
     yetrixPawn->Left();
 }
 
 void AYetrixPlayerController::MoveRight() {
 
-    auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(GetPawn());
+    AYetrixPawn* yetrixPawn = Cast<AYetrixPawn>(GetPawn());
     yetrixPawn->Right();
 }
 
 void AYetrixPlayerController::Down() {
 
-    auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(GetPawn());
+    AYetrixPawn* yetrixPawn = Cast<AYetrixPawn>(GetPawn());
     yetrixPawn->Down();
 }
 
 void AYetrixPlayerController::Drop() {
 
-    auto* yetrixPawn = dynamic_cast<AYetrixPawn*>(GetPawn());
+    AYetrixPawn* yetrixPawn = Cast<AYetrixPawn>(GetPawn());
     yetrixPawn->Drop();
 }

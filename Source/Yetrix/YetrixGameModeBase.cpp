@@ -89,43 +89,40 @@ void AYetrixGameModeBase::BeginPlay() {
 	Load();
 }
 
-void AYetrixGameModeBase::OnStartDestroying() {
-}
-
-void AYetrixGameModeBase::HandleDestruction()
+bool AYetrixGameModeBase::HandleDestruction()
 {
 	const auto& linesToDestruct = CheckDestruction();
-	if (!linesToDestruct.empty()) {
+	if (linesToDestruct.empty())
+		return false;
+	
+	statePtr->fallingPositions = statePtr->blockScenePtr->GetFallingPositions(linesToDestruct);
+	statePtr->currDropState = DropState::DESTROYING;
+	statePtr->dropStateTimer = statePtr->destroyStateDuration;
 
-		statePtr->fallingPositions = statePtr->blockScenePtr->GetFallingPositions(linesToDestruct);
-		statePtr->currDropState = DropState::DESTROYING;
-		statePtr->dropStateTimer = statePtr->destroyStateDuration;	
-		OnStartDestroying();
+	const auto howManyLines = linesToDestruct.size();
+	const int prevHundreds = statePtr->score / 100;
 
-		const auto howManyLines = linesToDestruct.size();
+	//assert(howManyLines <= 4);
+	AddScore(scorePerCombo[howManyLines - 1]);
 
-		const int prevHundreds = statePtr->score / 100;
+	const int nowHundreds = statePtr->score / 100;
 
-		//assert(howManyLines <= 4);
-		AddScore(scorePerCombo[howManyLines - 1]);
+	if (nowHundreds > prevHundreds) {
 
-		const int nowHundreds = statePtr->score / 100;
-
-		if (nowHundreds > prevHundreds) {
-
-			FTimerHandle TimerHandle;
-			constexpr float sayYeahAfterSeconds = 1.f;
-			const auto* world = GetWorld();
-			world->GetTimerManager().SetTimer(TimerHandle, [this]()
+		FTimerHandle TimerHandle;
+		constexpr float sayYeahAfterSeconds = 1.f;
+		const auto* world = GetWorld();
+		world->GetTimerManager().SetTimer(TimerHandle, [this]()
 			{
 				PlaySound("yeah");
 			}, sayYeahAfterSeconds, false);
-		}
-
-		statePtr->lightAngleStart = statePtr->lightAngleCurrent;
-		statePtr->lightAngleEnd += lightZRotationAddPerExplosion;
-		statePtr->sunMoveFinishTimer = sunMoveDuration;
 	}
+
+	statePtr->lightAngleStart = statePtr->lightAngleCurrent;
+	statePtr->lightAngleEnd += lightZRotationAddPerExplosion;
+	statePtr->sunMoveFinishTimer = sunMoveDuration;
+
+	return true;
 }
 
 std::map<int, std::vector<IDType> > AYetrixGameModeBase::GetBlocksSortedFromLower(const Figure::Ptr figure) const
@@ -143,10 +140,24 @@ std::map<int, std::vector<IDType> > AYetrixGameModeBase::GetBlocksSortedFromLowe
 	return sortedResult;
 }
 
+bool AYetrixGameModeBase::CheckConditionChange()
+{
+	const auto newConditionScore = GetBlockScene()->CalculateSceneConditionScore();
+	if (newConditionScore == statePtr->conditionScore)
+		return false;
+
+	statePtr->conditionScore = newConditionScore;
+	if (statePtr->conditionScore > worstConditionScore)
+		worstConditionScore = statePtr->conditionScore;
+
+	RequestUpdateConditionScoreUI();
+	return true;
+}
+
 void AYetrixGameModeBase::OnStartDropping() {
 
-	statePtr->blockScenePtr->DeconstructFigures();
-	HandleDestruction();
+	const bool deconstructed = statePtr->blockScenePtr->DeconstructFigures();
+	const bool destructionStarted = HandleDestruction();
 
 	const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
 	const auto& figures = statePtr->blockScenePtr->GetFigures();
@@ -208,8 +219,11 @@ void AYetrixGameModeBase::OnStartDropping() {
 		statePtr->quickDropRequested = false;
 		PlaySoundWithRandomIndex("bdysh", 3);
 	}
-	
-	CheckAddFigures();
+		
+	const bool figureAdded = CheckAddFigures();
+
+	if (figureAdded && !destructionStarted)
+		CheckConditionChange();
 }
 
 void AYetrixGameModeBase::UpdateSpeed()
@@ -281,6 +295,22 @@ void AYetrixGameModeBase::UpdateScoreUI()
 	hud->UpdateScore(statePtr->score, hiScore);
 }
 
+void AYetrixGameModeBase::UpdateConditionScoreUI()
+{
+	if (needUpdateConditionScoreUI > 0)
+		needUpdateConditionScoreUI--;
+
+	const auto* world = GetWorld();
+	if (!world)
+		return;
+
+	AYetrixHUDBase* hud = Cast<AYetrixHUDBase> (world->GetFirstPlayerController()->GetHUD());
+	if (!hud)
+		return;
+
+	hud->UpdateConditionScore(statePtr->conditionScore, worstConditionScore);
+}
+
 void AYetrixGameModeBase::GameOver()
 {
 	if (statePtr->score > hiScore)
@@ -291,40 +321,41 @@ void AYetrixGameModeBase::GameOver()
 	PlaySound("gameover");
 }
 
-void AYetrixGameModeBase::CheckAddFigures() {
+bool AYetrixGameModeBase::CheckAddFigures() {
 
 	if (statePtr->blockScenePtr->GetFigures().size() >= minFigures)
-		return;
+		return false;
 
 	const auto figureAdded = statePtr->blockScenePtr->CreateRandomFigureAt({ newFigureX, newFigureY }, GetWorld());
 	if (!figureAdded) {
 		GameOver();
+		return false;
 	}
-	else	
+
+	// apply assemble animation
+	const auto& blockIDs = figureAdded->GetBlockIDs();
+	static const std::vector<Vec2D> assembleOrigins = {
+		{-25, 25},
+		{-15, 25},
+		{25, 25},
+		{35, 25}
+	};
+
+	size_t asseblePosInd = 0;
+	for (const auto blockID : blockIDs)
 	{
-		// apply assemble animation
-		const auto& blockIDs = figureAdded->GetBlockIDs();
-		static const std::vector<Vec2D> assembleOrigins = {
-			{-25, 25},
-			{-15, 25},
-			{25, 25},
-			{35, 25}
-		};
-		
-		size_t asseblePosInd = 0;
-		for (const auto blockID : blockIDs)
-		{
-			const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockID);
+		const auto blockPtr = statePtr->blockScenePtr->GetBlock(blockID);
 
-			const auto blockPosNeeded = blockPtr->GetPosition();
-			const Vec2D assembleFromPos = assembleOrigins[asseblePosInd];
+		const auto blockPosNeeded = blockPtr->GetPosition();
+		const Vec2D assembleFromPos = assembleOrigins[asseblePosInd];
 
-			blockPtr->SetPositionAndUpdateActor(assembleFromPos);			
-			blockPtr->SetPositionAndUpdateActor(blockPosNeeded, assembleDuration);
+		blockPtr->SetPositionAndUpdateActor(assembleFromPos);
+		blockPtr->SetPositionAndUpdateActor(blockPosNeeded, assembleDuration);
 
-			asseblePosInd++;
-		}
+		asseblePosInd++;
 	}
+
+	return true;
 }
 
 void AYetrixGameModeBase::Left() {
@@ -356,8 +387,8 @@ void AYetrixGameModeBase::Down() {
 	}
 }
 
-std::set<int> AYetrixGameModeBase::CheckDestruction() {
-
+std::set<int> AYetrixGameModeBase::CheckDestruction(BlockScene& theBlockScene)
+{
 	std::set<int> linesToBoom;
 
 	for (int y = 1; y < checkHeight; ++y) {
@@ -365,11 +396,11 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 		for (int x = 1; x < rightBorderX; ++x)
 		{
 			Vec2D checkPos(x, y);
-			const auto blockPtr = statePtr->blockScenePtr->GetBlock(checkPos, true);
+			const auto blockPtr = theBlockScene.GetBlock(checkPos, true);
 			if (!blockPtr || !blockPtr->IsAlive() || blockPtr->GetFigureID() != Utils::emptyID) {
 				hasHoles = true;
 				break;
-			}				
+			}
 		}
 
 		if (!hasHoles) {
@@ -377,6 +408,13 @@ std::set<int> AYetrixGameModeBase::CheckDestruction() {
 		}
 	}
 
+	return linesToBoom;
+}
+
+std::set<int> AYetrixGameModeBase::CheckDestruction() {
+
+	const std::set<int>& linesToBoom = CheckDestruction(*statePtr->blockScenePtr);
+	
 	if (!linesToBoom.empty()) {
 		const auto linesCount = linesToBoom.size();
 
@@ -416,6 +454,7 @@ void AYetrixGameModeBase::FinalizeLogicalDestroy() {
 void AYetrixGameModeBase::OnStopDestroying() {
 	UpdateVisualDestroy(1.f);
 	FinalizeLogicalDestroy();
+	CheckConditionChange();
 
 	Save();
 }
@@ -429,6 +468,7 @@ void AYetrixGameModeBase::Save()
 	doc["blockScene"] = statePtr->blockScenePtr->Save();
 	doc["score"] = statePtr->score;
 	doc["hiscore"] = hiScore;
+	doc["worstConditionScore"] = worstConditionScore;
 
 	auto* saveGame = Cast<UYetrixSaveGame>(UGameplayStatics::CreateSaveGameObject(UYetrixSaveGame::StaticClass()));
 
@@ -452,8 +492,10 @@ bool AYetrixGameModeBase::Load()
 	statePtr->blockScenePtr->Load(doc["blockScene"], GetWorld());
 	statePtr->score = doc["score"].get<int>();
 	hiScore = doc["hiscore"].get<int>();
+	worstConditionScore = doc["worstConditionScore"].get<int>();
 
 	RequestUpdateScoreUI();
+	CheckConditionChange();
 	UpdateSpeed();
 
 	return true;
@@ -493,6 +535,11 @@ bool AYetrixGameModeBase::CheckChangeDropState() {
 	return true;
 }
 
+void AYetrixGameModeBase::RequestUpdateConditionScoreUI()
+{
+	needUpdateConditionScoreUI++;
+}
+
 void AYetrixGameModeBase::RequestUpdateScoreUI()
 {
 	needUpdateScoreUI++;
@@ -501,6 +548,7 @@ void AYetrixGameModeBase::RequestUpdateScoreUI()
 void AYetrixGameModeBase::ResetGame() {
 
 	statePtr = std::make_unique<State>();
+	worstConditionScore = 0;
 	RequestUpdateScoreUI();
 	UpdateSunlight(lightZRotationInit);
 }
@@ -712,4 +760,7 @@ void AYetrixGameModeBase::Tick(float dt) {
 
 	if (needUpdateScoreUI > 0)
 		UpdateScoreUI();
+
+	if (needUpdateConditionScoreUI > 0)
+		UpdateConditionScoreUI();
 }

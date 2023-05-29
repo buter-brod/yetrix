@@ -22,6 +22,7 @@ public:
 	void Rotate();
 
 	void SetGameMode(AYetrixGameModeBase* bsPtr);
+	const BlockScene* GetBlockScene() const {return yetrixGameMode->GetBlockScene();}
 
 protected:
 	virtual void BeginPlay() override;

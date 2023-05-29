@@ -22,7 +22,11 @@ public:
 	virtual void NativeConstruct() override;
 
 	void UpdateScoreCount(int Value, int HiValue) const;
+	void UpdateConditionScore(int Value, int WorstValue) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (BindWidget))
 	UTextBlock* txtScore = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (BindWidget))
+	UTextBlock* TxtCondition = nullptr;
 };
