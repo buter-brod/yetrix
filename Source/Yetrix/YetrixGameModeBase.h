@@ -48,7 +48,7 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	
 	void FinalizeLogicalDestroy();
 	std::set<int> CheckDestruction();
-	static std::set<int> CheckDestruction(BlockScene& theBlockScene);
+	static std::set<int> CheckDestruction(const BlockScene& theBlockScene);
 
 	void InitSounds();
 
@@ -117,7 +117,19 @@ class YETRIX_API AYetrixGameModeBase : public AGameModeBase
 	void UpdateSpeed();
 
 	bool CheckConditionChange();
-	
+
+	struct BlockAtPosition
+	{
+		BlockAtPosition(IDType id, const Vec2D& pos) : blockID(id), position(pos) {}
+
+		IDType blockID = Utils::emptyID;
+		Vec2D position;
+	};
+
+	typedef std::set<BlockAtPosition> FigureBlockPositions;
+
+	std::set<FigureBlockPositions> GetAllPossibleNewFigureBlockPositionsForAI() const;
+
 	std::unique_ptr<State> statePtr;
 	int hiScore = 0;
 	int worstConditionScore = 0;

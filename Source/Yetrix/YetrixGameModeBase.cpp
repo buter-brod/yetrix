@@ -387,7 +387,7 @@ void AYetrixGameModeBase::Down() {
 	}
 }
 
-std::set<int> AYetrixGameModeBase::CheckDestruction(BlockScene& theBlockScene)
+std::set<int> AYetrixGameModeBase::CheckDestruction(const BlockScene& theBlockScene)
 {
 	std::set<int> linesToBoom;
 
@@ -586,6 +586,39 @@ void AYetrixGameModeBase::UpdateVisualDestroy(const float progress) {
 
 		block->SetActorLocation(dropIntermediateWorldPos);
 	}
+}
+
+std::set<AYetrixGameModeBase::FigureBlockPositions> AYetrixGameModeBase::GetAllPossibleNewFigureBlockPositionsForAI() const
+{
+	std::set<FigureBlockPositions> figureBlockPositions;
+
+	//const auto lowestFigID = statePtr->blockScenePtr->GetLowestFigureID();
+	//if (lowestFigID == Utils::emptyID)
+	//	return {};
+
+	//const auto& figure = statePtr->blockScenePtr->GetFigures().at(lowestFigID);
+
+	//const auto rotatedPositionsForFigure = statePtr->blockScenePtr->GetRotatedPositions(figure);;
+
+	//for (const auto blockRotatedPosition : rotatedPositionsForFigure) {\}
+
+	//// wrap it into rotation cycle and position cycle
+	//FigureBlockPositions positions;
+
+	//unsigned heightToDrop = 0;
+	//const bool canDrop = statePtr->blockScenePtr->CheckFigureCanMove(figure, {0, -1}, heightToDrop);
+
+	//const auto& blockIDs = figure->GetBlockIDs();
+	//for (const auto blockID : blockIDs)
+	//{
+	//	const auto block = GetBlockScene()->GetBlock(blockID);
+	//	const auto blockPos = block->GetPosition();
+
+	//	const Vec2D newPos = {blockPos.x, blockPos.y + heightToDrop};
+	//	positions.emplace(blockID, newPos);
+	//}
+
+	return figureBlockPositions;
 }
 
 bool AYetrixGameModeBase::TryRotate()
